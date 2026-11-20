@@ -7,8 +7,10 @@ Every number comes from the same functions as the command line.
 from __future__ import annotations
 
 import streamlit as st
+from html import escape
 
 from dna_sequence_analyzer import __version__
+from dna_sequence_analyzer.translate import TABLES, transcribe, translate_frames
 from dna_sequence_analyzer.gc import GC_HIGH_PERCENT, GC_LOW_PERCENT
 from dna_sequence_analyzer.tm import OLIGO_GUIDANCE_LENGTH, MeltingConditions, melting_temperature
 from dna_sequence_analyzer.web_input import (
@@ -48,7 +50,7 @@ def main() -> None:
     if error:
         st.error(error)
     tabs = st.tabs(
-        ["Resumen GC", "GC por ventanas", "GC skew", "Tm de primers", "Aprende"]
+        ["Resumen GC", "GC por ventanas", "GC skew", "Tm de primers", "Traducción", "Aprende"]
     )
     with tabs[0]:
         _tab_resumen(records)
@@ -59,7 +61,36 @@ def main() -> None:
     with tabs[3]:
         _tab_tm()
     with tabs[4]:
+        _tab_traduccion(records)
+    with tabs[5]:
         _tab_aprende()
+
+
+def _tab_traduccion(records) -> None:
+    if not records:
+        st.info("Añade una secuencia para ver su traducción.")
+        return
+    record, _ = _choose_record(records, "traduccion")
+    if record is None:
+        return
+    table = st.selectbox("Tabla del código genético (NCBI)", TABLES)
+    sequence = str(record.seq)
+    try:
+        frames = translate_frames(sequence, table)
+    except ValueError as exc:
+        st.error(str(exc))
+        return
+    with st.expander("ARN transcrito de la hebra de entrada"):
+        st.code(transcribe(sequence), language=None)
+    st.caption("El asterisco (*) indica una parada. X indica un aminoácido indeterminado.")
+    for item in frames:
+        st.markdown(f"**Marco {item.frame}**")
+        if item.protein:
+            protein = escape(item.protein).replace("*", "<mark>*</mark>")
+            st.markdown(f'<code style="overflow-wrap:anywhere">{protein}</code>',
+                        unsafe_allow_html=True)
+        else:
+            st.caption("Sin codones completos.")
 
 
 def _sidebar_records():

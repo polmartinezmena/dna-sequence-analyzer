@@ -1,13 +1,13 @@
 # dna-sequence-analyzer
 
 Herramienta de línea de comandos para analizar secuencias de ADN.
-Esta versión, la **0.3.0**, lee un archivo FASTA y, para cada secuencia,
+Esta versión, la **0.4.0**, lee un archivo FASTA y, para cada secuencia,
 dice cómo se llama, cuántos símbolos tiene, cuál es su contenido en GC
 y cuántas bases ambiguas lleva. También parte la secuencia en ventanas,
 calcula el sesgo GC y estima la temperatura de fusión de un oligo corto.
 
 El programa está pensado para instalarse con `pip` y usarse en cualquier
-ordenador. Las etapas siguientes (traducción, ORFs, BLAST y publicación
+ordenador. Las etapas siguientes (ORFs, BLAST y publicación
 en PyPI) todavía no están hechas: la hoja de ruta está más abajo.
 
 Autor: Pol Martinez Mena, estudiante de Biotecnología en la UAB.
@@ -149,7 +149,7 @@ dna-analyzer --version
 ```
 
 ```text
-dna-analyzer 0.3.0
+dna-analyzer 0.4.0
 ```
 
 ## Uso
@@ -606,18 +606,45 @@ comprueba que `--plot` escribe un PNG.
 En GitHub, el workflow `Tests` ejecuta lo mismo con Python 3.10, 3.12
 y 3.13 en cada pull request.
 
+## Transcripción y traducción en seis marcos
+
+Al transcribir la hebra codificante de ADN escrita de 5′ a 3′, cada T se
+sustituye por U. Por ejemplo, `ATGAAATAG` da el ARN `AUGAAAUAG`. El
+código genético asigna un aminoácido o una señal de parada a cada grupo
+de tres bases (codón). En la tabla estándar, esos tres codones dan
+metionina, lisina y una parada, que se muestran como `MK*`.
+
+Hay tres formas de agrupar una hebra en tripletes según se empiece en
+la primera, segunda o tercera base. Son los marcos +1, +2 y +3.
+La hebra opuesta es antiparalela. Para leerla también de 5′ a 3′ se
+invierte el orden y se toma la base complementaria (A con T, C con G).
+Esa **complementaria inversa** admite otros tres marcos, −1, −2 y −3.
+
+```console
+dna-analyzer translate data/examples.fasta
+dna-analyzer translate data/examples.fasta --frame -2 --table 2
+```
+
+La tabla 1 es la estándar y la 2 corresponde a las mitocondrias de
+vertebrados. Cada fila cuenta los aminoácidos (incluida X), las paradas
+y la longitud del tramo más largo entre paradas o extremos. Una X indica
+que el codón ambiguo admite varias interpretaciones, como ocurre con NNN.
+Se omiten las bases finales que no forman un triplete completo. En la
+pestaña **Traducción** puedes consultar el ARN y ver cada parada resaltada
+en los seis marcos de la secuencia elegida.
+
 ## Hoja de ruta
 
 1. **Lectura de FASTA, GC, ventanas, sesgo GC y Tm de oligos.** Hecho.
    El GC es la 0.1.0, la Tm la 0.1.1, y las ventanas, el sesgo, la
    columna de ambiguas y el aviso de GC extremo son la 0.2.0.
    La app web, para usar el programa sin terminal, es la 0.3.0.
-2. Transcripción a ARN y traducción a proteína en los seis marcos de lectura.
+2. Transcripción a ARN y traducción a proteína en los seis marcos de lectura (disponible desde la 0.4.0).
 3. Búsqueda de ORFs (open reading frames, marcos de lectura abiertos).
 4. BLAST remoto contra NCBI.
 5. Línea de comandos pulida, README de publicación e instalación desde PyPI.
 
-La transcripción, los ORFs, BLAST y PyPI siguen sin hacerse. La Tm no
+Los ORFs, BLAST y PyPI siguen sin hacerse. La Tm no
 los sustituye: es un cálculo para oligos cortos, apoyado en el mismo
 lector de FASTA.
 
