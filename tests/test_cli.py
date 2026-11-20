@@ -108,7 +108,94 @@ def test_version_is_printed() -> None:
     result = runner.invoke(app, ["--version"])
 
     assert result.exit_code == 0
-    assert result.stdout.strip() == "dna-analyzer 0.1.0"
+    assert result.stdout.strip() == "dna-analyzer 0.1.1"
+
+
+def test_tm_command_prints_nearest_neighbor_temperature(tmp_path: Path) -> None:
+    from dna_sequence_analyzer.tm import melting_temperature
+
+    fasta = tmp_path / "oligos.fasta"
+    fasta.write_text(">ab\nATATATAT\n>block\nAAAATTTT\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["tm", str(fasta)])
+
+    alternating = f"{melting_temperature('ATATATAT'):.2f}"
+    blocked = f"{melting_temperature('AAAATTTT'):.2f}"
+    assert result.exit_code == 0
+    assert result.stdout.splitlines()[0] == "id     length  tm_celsius"
+    assert alternating in result.stdout
+    assert blocked in result.stdout
+    assert alternating != blocked
+    assert "short DNA oligos" not in result.stderr
+
+
+def test_tm_sequence_option_and_salt() -> None:
+    from dna_sequence_analyzer.tm import MeltingConditions, melting_temperature
+
+    plain = runner.invoke(app, ["tm", "--sequence", "ATGCATGC"])
+    salty = runner.invoke(app, ["tm", "--sequence", "ATGCATGC", "--na", "200"])
+
+    assert plain.exit_code == 0
+    assert f"{melting_temperature('ATGCATGC'):.2f}" in plain.stdout
+    assert salty.exit_code == 0
+    changed = melting_temperature("ATGCATGC", MeltingConditions(na_mM=200))
+    assert f"{changed:.2f}" in salty.stdout
+    assert plain.stdout != salty.stdout
+
+
+def test_tm_requires_a_file_or_a_sequence(tmp_path: Path) -> None:
+    missing = runner.invoke(app, ["tm"])
+    both = runner.invoke(app, ["tm", str(tmp_path / "x.fasta"), "--sequence", "ATGC"])
+
+    assert missing.exit_code == 1
+    assert "FASTA file or --sequence" in missing.stderr
+    assert both.exit_code == 1
+    assert "not both" in both.stderr
+
+
+def test_tm_missing_file_mentions_sequence_option(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["tm", str(tmp_path / "missing.fasta")])
+
+    assert result.exit_code == 1
+    assert "not found" in result.stderr
+    assert "--sequence" in result.stderr
+
+
+def test_tm_csv_and_undefined_records(tmp_path: Path) -> None:
+    fasta = tmp_path / "mixed.fasta"
+    fasta.write_text(">ok\nATGC\n>n\nAAAN\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["tm", str(fasta), "--csv"])
+
+    assert result.exit_code == 0
+    assert result.stdout.splitlines()[0] == "id,length,tm_celsius"
+    assert result.stdout.splitlines()[2] == "n,4,"
+    assert "Ambiguous bases are not removed" in result.stderr
+
+
+def test_tm_warns_that_long_records_are_not_primers(tmp_path: Path) -> None:
+    fasta = tmp_path / "long.fasta"
+    fasta.write_text(">transcript\n" + ("ATGC" * 20) + "\n", encoding="utf-8")
+
+    result = runner.invoke(app, ["tm", str(fasta)])
+
+    assert result.exit_code == 0
+    assert "not for long molecules" in result.stderr
+    assert "transcript" in result.stdout
+
+
+def test_tm_rejects_a_negative_salt() -> None:
+    result = runner.invoke(app, ["tm", "--sequence", "ATGC", "--na", "-5"])
+
+    assert result.exit_code == 1
+    assert "cannot be negative" in result.stderr
+
+
+def test_help_lists_the_tm_command() -> None:
+    result = runner.invoke(app, ["--help"])
+
+    assert result.exit_code == 0
+    assert "tm" in result.stdout
 
 
 def test_example_file_command(tmp_path: Path) -> None:

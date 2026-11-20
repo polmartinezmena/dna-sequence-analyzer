@@ -1,9 +1,10 @@
 # dna-sequence-analyzer
 
 Herramienta de línea de comandos para analizar secuencias de ADN.
-Esta versión, la **0.1.0**, es la etapa 1 del proyecto: lee un archivo
+Esta versión, la **0.1.1**, es la etapa 1 del proyecto: lee un archivo
 FASTA y, para cada secuencia, dice cómo se llama, cuántos símbolos
-tiene y cuál es su contenido en GC.
+tiene y cuál es su contenido en GC. También estima la temperatura de
+fusión de un oligo corto.
 
 El programa está pensado para instalarse con `pip` y usarse en cualquier
 ordenador. Las etapas siguientes (traducción, ORFs, BLAST y publicación
@@ -37,17 +38,35 @@ imprime una tabla con tres columnas:
 
 ## La biología del contenido en GC
 
-En el ADN, guanina (G) se empareja con citosina (C), y adenina (A) con
-timina (T). El par G-C se mantiene con **tres puentes de hidrógeno**. El
-par A-T se mantiene con **dos**. Por eso un ADN rico en G y C suele
-necesitar más energía para separar las dos hebras: su temperatura de
-fusión (Tm) tiende a ser más alta.
+El contenido en GC es la fracción de las bases contadas que son G o C.
+Resume la composición. No mide, por sí solo, lo estable que es la doble
+hélice.
 
-Eso no lo explica todo. El apilamiento entre bases vecinas también
-cambia la estabilidad, así que el porcentaje de GC es un resumen útil,
-no una descripción completa de la molécula. Aun así es uno de los
-primeros números que se miran de una secuencia, porque sirve para
-varias cosas:
+En el dúplex, cada base está emparejada con la de enfrente y, además,
+apilada sobre el par de al lado. La estabilidad depende sobre todo de
+ese **apilamiento** entre pares adyacentes (en inglés, *base stacking*).
+Los pasos que contienen G o C suelen apilarse con más fuerza, y por eso
+un ADN rico en GC tiende a separar sus hebras a más temperatura. "Suele"
+no significa "siempre": el orden importa. `GCGCGCGC` y `GGGGCCCC` tienen
+las dos un 100 % de GC y no se funden a la misma temperatura, porque los
+contactos entre vecinos no son los mismos.
+
+Los puentes de hidrógeno también existen: tres entre G y C, dos entre A
+y T. Aportan menos a la estabilidad **neta** de lo que sugiere ese
+recuento. Una base que ya no está emparejada con su complementaria sigue
+formando puentes de hidrógeno con el agua. Al abrir la hélice se pierden
+los puentes entre bases y se ganan otros con el disolvente. La diferencia
+que queda es pequeña comparada con el apilamiento.
+
+Por eso la temperatura de fusión (Tm) no sale de una fórmula que solo
+mire el porcentaje de GC. Se calcula con un modelo de **vecinos más
+próximos** (*nearest-neighbor*): se suma la contribución medida de cada
+dinucleótido, AA, AT, GC, CG y el resto, y se corrige por la sal y por
+la concentración del oligo. El comando `dna-analyzer tm` hace ese
+cálculo. Sirve para oligos y cebadores cortos, no para un ARNm de
+cientos de bases.
+
+El porcentaje de GC sigue siendo un buen resumen de composición:
 
 - **Comparar organismos.** Hay genomas muy ricos en GC y genomas muy
   ricos en AT. *Streptomyces* ronda el 70 % de GC. *Plasmodium
@@ -57,9 +76,8 @@ varias cosas:
   sus vecinos puede ser una pista de transferencia horizontal, de una
   isla CpG o, simplemente, de un gen con otro uso de codones. El número
   no demuestra la causa: invita a mirar más de cerca.
-- **Diseñar un experimento.** La Tm de un cebador de PCR depende en
-  parte de cuántas G y C lleva. Dos cebadores con un GC muy distinto
-  pueden no funcionar bien en la misma reacción.
+- **No sustituye a la Tm de un cebador.** Dos oligos con el mismo GC
+  pueden fundir a temperaturas distintas. Para eso está `dna-analyzer tm`.
 
 El contenido en GC de **un transcrito no es el GC del genoma entero**.
 Los dos ejemplos de `data/examples.fasta` lo enseñan: el ARNm de la
@@ -82,8 +100,8 @@ misma que usa Biopython en `gc_fraction(..., ambiguous="remove")`, es:
 | --- | --- | --- |
 | `A`, `C`, `G`, `T` | Bases de ADN decididas. | Entran en la fórmula. G y C suman al numerador. |
 | `U` | Uracilo, el equivalente del T en el ARN. | Cuenta como T: entra en el total y no suma como GC. Así un FASTA de ARN también da un resultado sensato. |
-| `S` | "Strong": la base es G o C, pero no se supo cuál. | Cuenta como GC. Las dos opciones tienen tres puentes de hidrógeno. |
-| `W` | "Weak": la base es A o T, pero no se supo cuál. | Entra en el total y no cuenta como GC. |
+| `S` | La base es G o C, pero no se supo cuál. El apodo antiguo de esta letra es "strong". | Cuenta como GC porque la base es G o C. Ese apodo es histórico: no describe de dónde sale la estabilidad del dúplex. |
+| `W` | La base es A o T, pero no se supo cuál. El apodo antiguo es "weak". | Entra en el total y no cuenta como GC, porque es A o T. |
 | `N`, `R`, `Y`, `K`, `M`, `B`, `D`, `H`, `V`, `X` | Podría ser un par GC o un par AT. `N` es "cualquier base". `X` aparece a veces con el mismo sentido. | No entran ni arriba ni abajo. Contarlas abajo haría bajar el porcentaje sin motivo. Contarlas como G o C sería inventar el dato. |
 | `-`, `.`, espacios y el resto | Huecos de un alineamiento u otros símbolos. | No entran en el porcentaje. Sí cuentan en la longitud. |
 | minúsculas | La misma base. A menudo marcan regiones repetidas. | Se tratan igual que las mayúsculas: `atgc` y `ATGC` dan el mismo GC. |
@@ -127,7 +145,7 @@ dna-analyzer --version
 ```
 
 ```text
-dna-analyzer 0.1.0
+dna-analyzer 0.1.1
 ```
 
 ## Uso
@@ -179,6 +197,113 @@ Note: GC% is NA when a record has no bases that can be counted (A, C, G, T, U, S
 Los mensajes del programa están en inglés para que cualquiera pueda
 usar la herramienta. Esta documentación está en español.
 
+### Temperatura de fusión
+
+`dna-analyzer tm` llama a `Bio.SeqUtils.MeltingTemp.Tm_NN`. La tabla
+termodinámica es DNA_NN3 (Allawi y SantaLucia, 1997), el defecto de
+Biopython: un modelo de ADN contra ADN. Una `U` se lee como `T`; no se
+usan las tablas de ARN.
+
+Estas dos secuencias tienen el mismo GC y distinta Tm, porque el orden
+cambia el apilamiento:
+
+```bash
+dna-analyzer tm --sequence GCGCGCGC
+dna-analyzer tm --sequence GGGGCCCC
+```
+
+En un archivo, con esos nombres:
+
+```text
+>alterno
+GCGCGCGC
+>bloque
+GGGGCCCC
+```
+
+```bash
+dna-analyzer tm oligos.fasta
+```
+
+```text
+id       length  tm_celsius
+-------  ------  ----------
+alterno       8       36.46
+bloque        8       24.87
+```
+
+Un oligo de tamaño más parecido al de un cebador, el ejemplo que usa
+la propia documentación de Biopython
+(`CGTTCCAAAGATGTGGGCATGAGCTTAC`, 28 bases):
+
+```bash
+dna-analyzer tm --sequence CGTTCCAAAGATGTGGGCATGAGCTTAC
+```
+
+```text
+id        length  tm_celsius
+--------  ------  ----------
+sequence      28       60.32
+```
+
+La temperatura sale en grados Celsius. Las condiciones por defecto son
+las de `Tm_NN`. Las concentraciones de iones van en milimolar (mM) y
+las de las hebras en nanomolar (nM):
+
+| Opción | Qué es | Defecto |
+| --- | --- | --- |
+| `--na` | Na+ | 50 mM |
+| `--k` | K+ | 0 |
+| `--tris` | Tris | 0 |
+| `--mg` | Mg2+ | 0 |
+| `--dntps` | dNTPs | 0 |
+| `--dnac1` | Hebra más concentrada, normalmente el cebador | 25 nM |
+| `--dnac2` | Hebra menos concentrada, normalmente la plantilla | 25 nM |
+| `--saltcorr` | Corrección de sal. 5 ajusta la entropía según SantaLucia 1998. 0 la apaga. Vale 0-7, las fórmulas de `salt_correction` en Biopython. | 5 |
+| `--self-complementary` | El oligo se empareja consigo mismo. Entonces `--dnac2` no se usa. | desactivado |
+| `--csv` | La misma tabla en CSV. | desactivado |
+
+En Biopython, 25 nM y 25 nM corresponde a lo que Primer3Plus llama una
+concentración total de oligo de 50 nM. Para subir solo el sodio:
+
+```bash
+dna-analyzer tm --sequence GCGCGCGC --na 200
+```
+
+El cálculo es para oligos y cebadores, del orden de 60 nucleótidos o
+menos. `data/examples.fasta` son ARNm largos. El comando igual produce
+un número, y avisa de que no hay que leerlo como temperatura de PCR:
+
+```text
+id           length  tm_celsius
+-----------  ------  ----------
+NM_000207.3     465       88.30
+L29345.1        922       76.31
+Note: Tm_NN is meant for short DNA oligos and primers (about 60 nt or fewer), not for long molecules such as mRNA. A longer record is still calculated, but do not use that number as a PCR melting temperature.
+```
+
+88 °C no es la temperatura a la que pondrías una PCR de la insulina.
+La fórmula se puede evaluar con una secuencia larga; el modelo no
+describe un mensajero de ese tamaño.
+
+Si una secuencia tiene una `N`, un hueco o menos de dos bases, esa fila
+sale `NA`. Las letras ambiguas no se borran antes de calcular: borrarlas
+sería puntuar otro oligo. En CSV la celda queda vacía.
+
+También desde Python:
+
+```python
+from dna_sequence_analyzer import melting_temperature
+
+print(round(melting_temperature("GCGCGCGC"), 2))
+print(round(melting_temperature("GGGGCCCC"), 2))
+```
+
+```text
+36.46
+24.87
+```
+
 También se puede usar como biblioteca de Python:
 
 ```python
@@ -225,7 +350,8 @@ pyproject.toml                  nombre del paquete, dependencias y el comando
 src/dna_sequence_analyzer/
     __init__.py                 lo que se importa desde fuera
     gc.py                       lectura del FASTA y cálculo del GC
-    cli.py                      la tabla y el comando dna-analyzer gc
+    tm.py                       Tm por vecinos más próximos, para oligos
+    cli.py                      las tablas y los comandos gc y tm
     __main__.py                 permite python -m dna_sequence_analyzer
 data/examples.fasta             las dos secuencias públicas de ejemplo
 tests/                          pruebas automáticas
@@ -241,6 +367,8 @@ El recorrido de una llamada es corto:
 3. Para cada secuencia, un bucle mira letra a letra y aplica la tabla
    de más arriba. El porcentaje es `100 * gc_bases / unambiguous_bases`.
 4. `cli.py` imprime la tabla, o el CSV si se pasó `--csv`.
+5. `dna-analyzer tm` usa el mismo lector y, para cada secuencia válida,
+   llama a `Tm_NN` con las condiciones que hayas pasado.
 
 Los comentarios del código están en inglés y explican la biología de
 cada decisión, no solo la sintaxis.
@@ -260,20 +388,26 @@ una carpeta y un archivo que no es FASTA. También comprueban el formato
 de la tabla y del CSV, y que los dos ejemplos de NCBI dan 297 G/C de
 465 y 334 G/C de 922.
 
+Para la Tm comprueban que el número coincide con `Tm_NN`, que dos oligos
+con el mismo GC% no dan la misma temperatura, que una `N` no se borra en
+silencio, y que una secuencia larga se calcula y queda marcada como
+demasiado larga para un cebador.
+
 En GitHub, el workflow `Tests` ejecuta lo mismo con Python 3.10, 3.12
 y 3.13 en cada pull request.
 
 ## Hoja de ruta
 
-1. **Lectura de FASTA, longitud y contenido en GC.** Hecho en la versión 0.1.0.
+1. **Lectura de FASTA, longitud, contenido en GC y Tm de oligos.** Hecho.
+   El GC es la 0.1.0. La Tm por vecinos más próximos es la 0.1.1.
 2. Transcripción a ARN y traducción a proteína en los seis marcos de lectura.
 3. Búsqueda de ORFs (open reading frames, marcos de lectura abiertos).
 4. BLAST remoto contra NCBI.
 5. Línea de comandos pulida, README de publicación e instalación desde PyPI.
 
-Cada etapa se apoya en la anterior. Esta versión se queda en la primera
-a propósito: el paquete, las pruebas y el comando tienen que estar
-firmes antes de añadir biología más complicada.
+La transcripción, los ORFs, BLAST y PyPI siguen sin hacerse. La Tm no
+los sustituye: es un cálculo para oligos cortos, apoyado en el mismo
+lector de FASTA.
 
 ## Qué he aprendido
 
@@ -284,6 +418,8 @@ por donde empezar, puedes contar:
 - cómo está organizado un archivo FASTA y qué hace Biopython al leerlo;
 - por qué G y C se cuentan juntas, y por qué una `N` no es lo mismo que
   un 0 %;
+- por qué el porcentaje de GC no predice la Tm, y qué aporta el
+  apilamiento frente a los puentes de hidrógeno;
 - qué tiene que haber en `pyproject.toml` para que `pip install -e .`
   cree el comando `dna-analyzer`;
 - qué prueba falló la primera vez y qué te enseñó el fallo.

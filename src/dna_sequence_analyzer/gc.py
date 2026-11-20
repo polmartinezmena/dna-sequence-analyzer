@@ -1,10 +1,19 @@
 """Read FASTA records and calculate their GC content.
 
-GC content is the share of a DNA (or RNA) sequence that is guanine
-or cytosine. In a double helix, G pairs with C through three hydrogen
-bonds, while A pairs with T through two. A higher GC content therefore
-tends to make the duplex harder to melt, which is one reason the number
-is used to describe genes, genomes and primers.
+GC content is the share of the counted bases that are guanine or
+cytosine. It summarizes composition. It does not, by itself, measure
+how stable a double helix is.
+
+Duplex stability comes mainly from base stacking, the interaction
+between neighboring base pairs. Steps that contain G or C are often
+stacked more strongly, so GC-rich DNA tends to melt at a higher
+temperature. Sequence order still matters: two oligos with the same
+GC% can have different stacks and different melting temperatures.
+Hydrogen bonds (three in a G-C pair, two in an A-T pair) add less to
+the net stability than that bond count suggests, because the unpaired
+bases also form hydrogen bonds with water. Melting temperature is
+therefore calculated from each dinucleotide step, not from GC% alone.
+See :mod:`dna_sequence_analyzer.tm`.
 
 The percentage this module returns is::
 
@@ -22,15 +31,17 @@ from pathlib import Path
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 
-# Bases that must be guanine or cytosine.
-# S is the IUPAC "strong" code: the base is G or C, but the call did
-# not say which. Either way it forms three hydrogen bonds, so it counts
-# as GC.
+# Bases that count as G or C.
+# S is the IUPAC code for "G or C". Either letter belongs in the GC
+# count, so S is included. Its old nickname "strong" referred to three
+# hydrogen bonds. That nickname is not why S is counted, and those
+# bonds are not the main source of duplex stability. See the module
+# docstring.
 _GC_BASES = frozenset("GCS")
-# Bases that are known and are not guanine or cytosine.
-# U is uracil, the RNA equivalent of T. W is the IUPAC "weak" code:
-# the base is A or T, so it does not count as GC, but it does count in
-# the total.
+# Bases that are known and are not G or C.
+# U is uracil, the RNA equivalent of T. W is the IUPAC code for "A or T"
+# (nicknamed "weak"). It counts in the total and not as GC because of
+# which bases it can be, not because two hydrogen bonds make a weak duplex.
 _AT_BASES = frozenset("ATUW")
 # Ambiguity codes that could be either a GC pair or an AT pair.
 # They are left out of both sides of the percentage.
@@ -89,10 +100,8 @@ def gc_percent(sequence: str) -> float | None:
 
     Two ambiguous letters are decided enough to keep:
 
-    * ``S`` means G or C ("strong", three hydrogen bonds). It counts
-      as GC.
-    * ``W`` means A or T ("weak", two hydrogen bonds). It counts in
-      the total, and not as GC.
+    * ``S`` means G or C. It counts as GC.
+    * ``W`` means A or T. It counts in the total, and not as GC.
 
     The other ambiguity codes could be either kind of pair, so they
     are left out of both the numerator and the denominator. An ``N``
@@ -125,22 +134,18 @@ def gc_percent(sequence: str) -> float | None:
     return 100.0 * gc_bases / unambiguous_bases
 
 
-def analyze_fasta(path: str | Path) -> list[SequenceStats]:
-    """Read a FASTA file and describe every record.
+def read_fasta(path: str | Path) -> list[SeqRecord]:
+    """Open a FASTA file and return its records in file order.
 
-    The file may contain one sequence or many. Records are returned in
-    the same order as they appear in the file. Wrapped sequence lines
-    are joined, which is the normal FASTA layout: a sequence is often
-    broken into lines of 60 or 70 characters and those line breaks are
-    not part of the molecule.
+    Wrapped sequence lines are joined. A line break inside a sequence
+    is part of the file layout, not part of the molecule.
 
     Args:
         path: Path to a FASTA file.
 
     Returns:
-        One :class:`SequenceStats` per record. A header with an empty
-        sequence is kept: its length is 0 and its GC content is
-        ``None``.
+        One :class:`~Bio.SeqRecord.SeqRecord` per record, including a
+        header whose sequence is empty.
 
     Raises:
         FileNotFoundError: ``path`` does not exist.
@@ -174,8 +179,30 @@ def analyze_fasta(path: str | Path) -> list[SequenceStats]:
             f"No FASTA records found in {fasta_path}. "
             "Each record must start with a '>' header line followed by sequence."
         )
+    return records
 
-    return [_stats_from_record(record) for record in records]
+
+def analyze_fasta(path: str | Path) -> list[SequenceStats]:
+    """Read a FASTA file and describe every record.
+
+    The file may contain one sequence or many. Records are returned in
+    the same order as they appear in the file.
+
+    Args:
+        path: Path to a FASTA file.
+
+    Returns:
+        One :class:`SequenceStats` per record. A header with an empty
+        sequence is kept: its length is 0 and its GC content is
+        ``None``.
+
+    Raises:
+        FileNotFoundError: ``path`` does not exist.
+        ValueError: ``path`` is not a file, the file is empty, it is
+            not text, or it contains no FASTA records. A FASTA record
+            has to start with a ``>`` header line.
+    """
+    return [_stats_from_record(record) for record in read_fasta(path)]
 
 
 def _count_bases(sequence: str) -> tuple[int, int, int]:
