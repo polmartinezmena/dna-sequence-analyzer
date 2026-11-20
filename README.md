@@ -1,10 +1,10 @@
 # dna-sequence-analyzer
 
 Herramienta de línea de comandos para analizar secuencias de ADN.
-Esta versión, la **0.1.1**, es la etapa 1 del proyecto: lee un archivo
-FASTA y, para cada secuencia, dice cómo se llama, cuántos símbolos
-tiene y cuál es su contenido en GC. También estima la temperatura de
-fusión de un oligo corto.
+Esta versión, la **0.2.0**, lee un archivo FASTA y, para cada secuencia,
+dice cómo se llama, cuántos símbolos tiene, cuál es su contenido en GC
+y cuántas bases ambiguas lleva. También parte la secuencia en ventanas,
+calcula el sesgo GC y estima la temperatura de fusión de un oligo corto.
 
 El programa está pensado para instalarse con `pip` y usarse en cualquier
 ordenador. Las etapas siguientes (traducción, ORFs, BLAST y publicación
@@ -35,6 +35,9 @@ imprime una tabla con tres columnas:
 | `id` | Nombre de la secuencia (la primera palabra de la cabecera). |
 | `length` | Longitud: cuántos símbolos tiene, contando también `N`, huecos y cualquier otra letra. |
 | `gc_percent` | Contenido en GC, en tanto por ciento, con dos decimales. `NA` si no se puede calcular. |
+| `ambiguous` | Cuántas letras ambiguas hay (`N`, `R`, `Y`, `K`, `M`, `B`, `D`, `H`, `V`, `X`). Siguen fuera del porcentaje. |
+| `type` | `dna` si hay T y no hay U, `rna` si hay U y no hay T, `mixed` si hay las dos, `unspecified` si no hay ni T ni U. |
+| `flag` | `low-gc` por debajo del 25 % o `high-gc` por encima del 65 %. Vacío en el medio. |
 
 ## La biología del contenido en GC
 
@@ -135,8 +138,9 @@ En Windows, el entorno se activa con `.venv\Scripts\activate`.
 
 `pip install -e .` instala el programa en modo editable: si cambias el
 código, el comando `dna-analyzer` usa ese cambio sin reinstalar. El
-extra `[dev]` añade pytest para lanzar las pruebas. Sin `[dev]` el
-comando también funciona; simplemente no tendrás pytest.
+extra `[dev]` añade pytest para lanzar las pruebas. El extra `[plot]`
+añade matplotlib, solo si quieres los PNG de `--plot`. Sin esos extras
+el comando también funciona.
 
 Comprueba la instalación:
 
@@ -145,7 +149,7 @@ dna-analyzer --version
 ```
 
 ```text
-dna-analyzer 0.1.1
+dna-analyzer 0.2.0
 ```
 
 ## Uso
@@ -163,10 +167,10 @@ dna-analyzer gc data/examples.fasta
 ```
 
 ```text
-id           length  gc_percent
------------  ------  ----------
-NM_000207.3     465       63.87
-L29345.1        922       36.23
+id           length  gc_percent  ambiguous  type  flag
+-----------  ------  ----------  ---------  ----  ----
+NM_000207.3     465       63.87          0   dna
+L29345.1        922       36.23          0   dna
 ```
 
 La misma información en CSV, por ejemplo para abrirla en una hoja de
@@ -177,9 +181,9 @@ dna-analyzer gc data/examples.fasta --csv
 ```
 
 ```text
-id,length,gc_percent
-NM_000207.3,465,63.87
-L29345.1,922,36.23
+id,length,gc_percent,ambiguous,type,flag
+NM_000207.3,465,63.87,0,dna,
+L29345.1,922,36.23,0,dna,
 ```
 
 Si una secuencia no tiene ninguna base contable, la tabla escribe `NA`
@@ -187,10 +191,10 @@ y, por la salida de error, una nota. El CSV deja esa celda vacía para
 que un programa no confunda el texto `NA` con un número:
 
 ```text
-id           length  gc_percent
------------  ------  ----------
-ejemplo           8       50.00
-desconocido       4          NA
+id           length  gc_percent  ambiguous         type  flag
+-----------  ------  ----------  ---------  -----------  ----
+ejemplo           8       50.00          4          dna
+desconocido       4          NA          4  unspecified
 Note: GC% is NA when a record has no bases that can be counted (A, C, G, T, U, S or W).
 ```
 
@@ -264,11 +268,31 @@ las de las hebras en nanomolar (nM):
 | `--csv` | La misma tabla en CSV. | desactivado |
 
 En Biopython, 25 nM y 25 nM corresponde a lo que Primer3Plus llama una
-concentración total de oligo de 50 nM. Para subir solo el sodio:
+concentración total de oligo de 50 nM.
 
-```bash
-dna-analyzer tm --sequence GCGCGCGC --na 200
-```
+Cada nucleótido lleva un fosfato, y a pH fisiológico ese fosfato está
+cargado negativo. Las dos hebras se repelen. Esa repulsión favorece
+que el dúplex se abra, así que baja la Tm. Los cationes (Na+, K+ y,
+con más efecto por ion, Mg2+) se acumulan alrededor de los fosfatos y
+apantallan la repulsión: las hebras se estorban menos y el dúplex
+aguanta hasta una temperatura más alta. Los dNTPs también están
+cargados negativo y secuestran Mg2+, así que bajan el magnesio libre
+que estaba haciendo de pantalla. Por eso `--mg` y `--dntps` son
+opciones distintas. Subir la concentración del oligo (`--dnac1` y
+`--dnac2`) también sube un poco la Tm, porque a más hebra en el tubo
+más favorecido está el dúplex.
+
+El mismo oligo de 28 bases, `CGTTCCAAAGATGTGGGCATGAGCTTAC`, lo enseña:
+
+| Condiciones | Tm |
+| --- | --- |
+| Defecto: 50 mM Na+, sin magnesio | 60,32 °C |
+| `--na 200` | 67,34 °C |
+| `--mg 2` | 67,82 °C |
+| `--mg 2 --dntps 1.5` | 65,31 °C |
+
+El magnesio sube la Tm. Parte de ese efecto se pierde cuando los dNTPs
+se quedan con parte del Mg2+.
 
 El cálculo es para oligos y cebadores, del orden de 60 nucleótidos o
 menos. `data/examples.fasta` son ARNm largos. El comando igual produce
@@ -324,8 +348,132 @@ L29345.1 922 36.23
 `analyze_fasta` devuelve una lista de `SequenceStats`. Además del
 nombre, la longitud y el porcentaje, cada elemento guarda cuántas
 bases contaron como GC (`gc_bases`), cuántas entraron en el total
-(`unambiguous_bases`) y cuántas letras ambiguas se dejaron fuera
-(`ambiguous_bases`). El campo `name` es el mismo que `id`.
+(`unambiguous_bases`), cuántas letras ambiguas se dejaron fuera
+(`ambiguous_bases`), si la secuencia parece ADN o ARN (`nucleic_acid`)
+y si el GC es extremo (`gc_flag`). El campo `name` es el mismo que `id`.
+
+### Ventanas de GC y CpG
+
+El GC de todo el registro es una media. Una isla CpG o un tramo rico
+en AT pueden quedar escondidos dentro. `gc-window` corta cada registro
+en ventanas de longitud `--window` que avanzan `--step` bases. Las
+posiciones son desde 1 e incluyen los dos extremos. Una ventana que no
+cabe entera al final no se imprime.
+
+```bash
+dna-analyzer gc-window data/examples.fasta --window 200 --step 200
+```
+
+```text
+id           start  end  gc_percent  cpg_oe  ambiguous
+-----------  -----  ---  ----------  ------  ---------
+NM_000207.3      1  200       63.50  0.2999          0
+NM_000207.3    201  400       64.00  0.2447          0
+L29345.1         1  200       39.50  0.3953          0
+L29345.1       201  400       38.50  0.5405          0
+L29345.1       401  600       33.50  0.3571          0
+L29345.1       601  800       40.50  0.2551          0
+```
+
+`cpg_oe` es el cociente observado/esperado del dinucleótido CG:
+
+```text
+O/E = (número de CG * longitud de la ventana) / (número de C * número de G)
+```
+
+Solo cuenta una C seguida de una G. Si en la ventana no hay C o no hay
+G, el esperado es cero y la celda sale `NA`. Un cribado clásico de
+islas CpG (Gardiner-Garden y Frommer, 1987) busca tramos de más de
+200 bp con GC por encima del 50 % y O/E por encima de 0,6. Este
+comando no decide si una ventana es una isla: deja los dos números
+para que los mires. En el ARNm de la insulina el GC de esas ventanas
+es alto, pero el O/E está cerca de 0,3, muy por debajo de 0,6.
+
+`--step` menor que `--window` hace que las ventanas se solapen.
+`--csv` escribe la misma tabla. `--plot figura.png` guarda un PNG del
+GC a lo largo de la secuencia. El dibujo necesita matplotlib, que no
+viene en la instalación básica:
+
+```bash
+pip install -e ".[plot]"
+dna-analyzer gc-window data/examples.fasta --window 100 --step 100 --plot gc.png
+```
+
+### Sesgo GC
+
+El sesgo GC de una ventana es:
+
+```text
+sesgo = (G - C) / (G + C)
+```
+
+Vale +1 si solo hay G, -1 si solo hay C, y 0 si hay las mismas. La S
+no entra: es G o C, pero el signo depende de cuál, y eso no se sabe.
+El sesgo acumulado es la suma de esos valores desde el principio del
+registro. Cada registro vuelve a empezar de cero.
+
+En muchos cromosomas bacterianos la hebra líder de la replicación es
+más rica en G que en C. La curva acumulada baja a lo largo de un
+replichoro y sube a lo largo del otro. El mínimo suele caer cerca del
+origen de replicación (oriC) y el máximo cerca del término (ter). Es
+una pista, no una demostración, y tiene sentido en un cromosoma
+bacteriano, no en un cebador de 20 bases.
+
+Un ejemplo corto, solo para ver la aritmética. Ocho G seguidas de
+ocho C, en ventanas de 4:
+
+```text
+>chrom
+GGGGGGGGCCCCCCCC
+```
+
+```bash
+dna-analyzer skew cromosoma.fasta --window 4 --step 4
+```
+
+```text
+id     start  end  gc_skew  cumulative_skew
+-----  -----  ---  -------  ---------------
+chrom      1    4   1.0000           1.0000
+chrom      5    8   1.0000           2.0000
+chrom      9   12  -1.0000           1.0000
+chrom     13   16  -1.0000           0.0000
+```
+
+`--plot sesgo.png` dibuja el sesgo de cada ventana y, debajo, la suma
+acumulada. También pide el extra `plot`.
+
+### ARN, apilamiento y pares G·U
+
+Si la secuencia lleva uracilo (U) y no lleva timina, la columna `type`
+dice `rna`. La U cuenta como base conocida que no es GC, igual que la
+T. Si aparecen las dos letras, el tipo es `mixed`. El comando `tm`
+lee la U como T para poder usar la tabla de ADN contra ADN, y avisa de
+que ese número no es una temperatura de plegamiento.
+
+La estructura secundaria del ARN, los tallos y los bucles, también
+depende del apilamiento: un tallo rico en pares G-C suele ser más
+estable. Además el ARN forma pares G·U, llamados wobble. No son el
+par Watson-Crick G-C, pero son frecuentes y lo bastante estables para
+aparecer en un tallo. Este programa no pliega la secuencia y no puntúa
+esos pares. Solo los nombra para que no se confunda el GC% con un
+predictor de estructura.
+
+### Sesgo técnico del GC
+
+El GC extremo no es solo una curiosidad de composición. En una PCR, un
+molde muy rico en GC cuesta más de desnaturalizar y a menudo amplifica
+peor. Un molde muy rico en AT se abre con facilidad y puede amplificar
+con otra eficiencia. En la secuenciación Illumina la cobertura suele
+bajar en las regiones muy ricas en GC y en las muy ricas en AT: la
+librería no las representa igual que el resto del genoma.
+
+`dna-analyzer gc` marca `low-gc` por debajo del 25 % y `high-gc` por
+encima del 65 %. Esos cortes son un aviso práctico de este programa,
+no un umbral del fabricante del secuenciador. Un registro dentro de la
+banda también puede dar problemas, y uno fuera de la banda no está
+condenado. La marca sirve para mirar otra vez esa secuencia antes de
+diseñar cebadores o de fiarse de una cobertura.
 
 ### Cuando algo sale mal
 
@@ -349,9 +497,11 @@ da `Error: Path is not a file: ...`.
 pyproject.toml                  nombre del paquete, dependencias y el comando
 src/dna_sequence_analyzer/
     __init__.py                 lo que se importa desde fuera
-    gc.py                       lectura del FASTA y cálculo del GC
+    gc.py                       lectura del FASTA, GC, ambiguas y tipo ADN/ARN
+    windows.py                  ventanas de GC, CpG O/E y sesgo GC
     tm.py                       Tm por vecinos más próximos, para oligos
-    cli.py                      las tablas y los comandos gc y tm
+    plots.py                    PNG opcionales; matplotlib no es obligatorio
+    cli.py                      las tablas y los comandos
     __main__.py                 permite python -m dna_sequence_analyzer
 data/examples.fasta             las dos secuencias públicas de ejemplo
 tests/                          pruebas automáticas
@@ -367,8 +517,10 @@ El recorrido de una llamada es corto:
 3. Para cada secuencia, un bucle mira letra a letra y aplica la tabla
    de más arriba. El porcentaje es `100 * gc_bases / unambiguous_bases`.
 4. `cli.py` imprime la tabla, o el CSV si se pasó `--csv`.
-5. `dna-analyzer tm` usa el mismo lector y, para cada secuencia válida,
-   llama a `Tm_NN` con las condiciones que hayas pasado.
+5. `dna-analyzer tm` usa el mismo lector y llama a `Tm_NN`. Na+, Mg2+
+   y los dNTPs entran en la corrección de sal de Biopython.
+6. `gc-window` y `skew` recorren la misma secuencia en bloques. El
+   sesgo acumulado se reinicia en cada registro.
 
 Los comentarios del código están en inglés y explican la biología de
 cada decisión, no solo la sintaxis.
@@ -389,17 +541,24 @@ de la tabla y del CSV, y que los dos ejemplos de NCBI dan 297 G/C de
 465 y 334 G/C de 922.
 
 Para la Tm comprueban que el número coincide con `Tm_NN`, que dos oligos
-con el mismo GC% no dan la misma temperatura, que una `N` no se borra en
-silencio, y que una secuencia larga se calcula y queda marcada como
-demasiado larga para un cebador.
+con el mismo GC% no dan la misma temperatura, que subir Na+ o Mg2+ sube
+la Tm, que los dNTPs le quitan parte de ese efecto al magnesio, que una
+`N` no se borra en silencio, y que una secuencia larga se calcula y queda
+marcada como demasiado larga para un cebador.
+
+Para las ventanas comprueban el O/E de CpG, el sesgo, que la suma
+acumulada vuelve a cero al cambiar de registro, y que una ventana que
+no cabe no se inventa. Si matplotlib está instalado, también se
+comprueba que `--plot` escribe un PNG.
 
 En GitHub, el workflow `Tests` ejecuta lo mismo con Python 3.10, 3.12
 y 3.13 en cada pull request.
 
 ## Hoja de ruta
 
-1. **Lectura de FASTA, longitud, contenido en GC y Tm de oligos.** Hecho.
-   El GC es la 0.1.0. La Tm por vecinos más próximos es la 0.1.1.
+1. **Lectura de FASTA, GC, ventanas, sesgo GC y Tm de oligos.** Hecho.
+   El GC es la 0.1.0, la Tm la 0.1.1, y las ventanas, el sesgo, la
+   columna de ambiguas y el aviso de GC extremo son la 0.2.0.
 2. Transcripción a ARN y traducción a proteína en los seis marcos de lectura.
 3. Búsqueda de ORFs (open reading frames, marcos de lectura abiertos).
 4. BLAST remoto contra NCBI.
@@ -420,6 +579,8 @@ por donde empezar, puedes contar:
   un 0 %;
 - por qué el porcentaje de GC no predice la Tm, y qué aporta el
   apilamiento frente a los puentes de hidrógeno;
+- por qué el sodio y el magnesio suben la Tm (la repulsión de los
+  fosfatos), y para qué sirve el sesgo GC en una bacteria;
 - qué tiene que haber en `pyproject.toml` para que `pip install -e .`
   cree el comando `dna-analyzer`;
 - qué prueba falló la primera vez y qué te enseñó el fallo.

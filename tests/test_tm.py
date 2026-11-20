@@ -21,6 +21,26 @@ def test_default_matches_biopython_tm_nn() -> None:
     assert melting_temperature(BIOPYTHON_EXAMPLE) == pytest.approx(Tm_NN(BIOPYTHON_EXAMPLE))
 
 
+def test_cations_and_oligo_concentration_raise_tm() -> None:
+    # Phosphates on the two backbones repel each other. Na+ and Mg2+
+    # screen that repulsion, so Tm goes up. dNTPs bind Mg2+ and give
+    # some of that screening back. More oligo also raises Tm, because
+    # the duplex is favored when the strands are more concentrated.
+    oligo = BIOPYTHON_EXAMPLE
+    sodium = melting_temperature(oligo, MeltingConditions(na_mM=50))
+    more_sodium = melting_temperature(oligo, MeltingConditions(na_mM=200))
+    magnesium = melting_temperature(oligo, MeltingConditions(na_mM=50, mg_mM=2))
+    magnesium_bound = melting_temperature(
+        oligo, MeltingConditions(na_mM=50, mg_mM=2, dntps_mM=1.5)
+    )
+    dilute = melting_temperature(oligo, MeltingConditions(dnac1_nM=25, dnac2_nM=25))
+    concentrated = melting_temperature(oligo, MeltingConditions(dnac1_nM=250, dnac2_nM=250))
+    assert more_sodium > sodium
+    assert magnesium > sodium
+    assert sodium < magnesium_bound < magnesium
+    assert concentrated > dilute
+
+
 def test_self_complementary_matches_biopython() -> None:
     conditions = MeltingConditions(selfcomp=True)
     assert melting_temperature("ATGCAT", conditions) == pytest.approx(

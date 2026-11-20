@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dna-sequence-analyzer"
-version = "0.1.1"
-description = "Command-line toolkit for DNA sequence analysis. Reads FASTA and reports length, GC content, and nearest-neighbor oligo Tm."
+version = "0.2.0"
+description = "Command-line toolkit for DNA sequence analysis. Reads FASTA and reports GC content, window composition, GC skew, and oligo Tm."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -32,6 +32,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+plot = ["matplotlib>=3.8"]
 
 [project.urls]
 Homepage = "https://github.com/polmartinezmena-byte/dna-sequence-analyzer"

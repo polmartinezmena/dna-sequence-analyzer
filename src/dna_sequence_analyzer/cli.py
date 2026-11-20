@@ -1,8 +1,9 @@
 """Command-line interface for the DNA sequence analyzer.
 
-``gc`` prints sequence id, length and GC content. ``tm`` prints a
-nearest-neighbor melting temperature for short DNA oligos. Later stages
-will add more commands.
+``gc`` prints length, GC content, ambiguous-base count and a flag for
+extreme GC. ``gc-window`` and ``skew`` slide a window along each record.
+``tm`` prints a nearest-neighbor melting temperature for short oligos.
+Later stages will add more commands.
 """
 
 import csv
@@ -13,7 +14,8 @@ from typing import TextIO
 import typer
 
 from dna_sequence_analyzer import __version__
-from dna_sequence_analyzer.gc import analyze_fasta
+from dna_sequence_analyzer.gc import GC_HIGH_PERCENT, GC_LOW_PERCENT, analyze_fasta
+from dna_sequence_analyzer.plots import write_gc_window_plot, write_skew_plot
 from dna_sequence_analyzer.tm import (
     OLIGO_GUIDANCE_LENGTH,
     MeltingConditions,
@@ -21,13 +23,14 @@ from dna_sequence_analyzer.tm import (
     analyze_melting,
     melting_record_for_sequence,
 )
+from dna_sequence_analyzer.windows import gc_windows, skew_windows
 
 app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
     help=(
         "DNA sequence analysis toolkit. "
-        "Reads FASTA and reports length, GC content, and oligo melting temperature."
+        "Reads FASTA and reports GC content, window composition, GC skew, and oligo Tm."
     ),
 )
 
@@ -65,15 +68,16 @@ def gc(
     as_csv: bool = typer.Option(
         False,
         "--csv",
-        help="Print id,length,gc_percent as CSV instead of a text table.",
+        help="Print the table as CSV instead of aligned text.",
     ),
 ) -> None:
-    """Print the length and GC content of each FASTA record.
+    """Print length, GC content and ambiguous-base count for each record.
 
     GC% counts G, C and S as GC, and A, T, U and W as known bases that
-    are not GC. Other ambiguity codes, such as N, are excluded. Length
-    still includes every symbol in the sequence. GC% is shown as NA
-    when a record has no bases that can be counted.
+    are not GC. Other ambiguity codes, such as N, are counted in the
+    ambiguous column and excluded from the percentage. U means the
+    record is reported as RNA. GC below 25% or above 65% is flagged,
+    because those extremes often bias PCR and Illumina sequencing.
     """
     try:
         stats = analyze_fasta(fasta_file)
@@ -81,27 +85,36 @@ def gc(
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
 
-    header = ("id", "length", "gc_percent")
+    header = ("id", "length", "gc_percent", "ambiguous", "type", "flag")
     rows = [
         (
             item.id,
             str(item.length),
             "" if item.gc_percent is None else f"{item.gc_percent:.2f}",
+            str(item.ambiguous_bases),
+            item.nucleic_acid,
+            item.gc_flag or "",
         )
         for item in stats
     ]
-    if as_csv:
-        _write_csv(header, rows, sys.stdout)
-    else:
-        display_rows = [
-            (item_id, length, gc_text or "NA") for item_id, length, gc_text in rows
-        ]
-        typer.echo(_format_table(header, display_rows))
-
+    _emit_table(header, rows, as_csv, na_columns=(2,))
     if any(item.gc_percent is None for item in stats):
         typer.echo(
             "Note: GC% is NA when a record has no bases that can be counted "
             "(A, C, G, T, U, S or W).",
+            err=True,
+        )
+    if any(item.nucleic_acid in {"rna", "mixed"} for item in stats):
+        typer.echo(
+            "Note: U marks RNA and counts as a non-GC base, like T. "
+            "RNA secondary structure and G-U wobble pairs are not predicted.",
+            err=True,
+        )
+    if any(item.gc_flag for item in stats):
+        typer.echo(
+            f"Note: GC below {GC_LOW_PERCENT:.0f}% is flagged low-gc and GC above "
+            f"{GC_HIGH_PERCENT:.0f}% is flagged high-gc. Extreme GC can bias "
+            "PCR amplification and Illumina sequencing.",
             err=True,
         )
 
@@ -218,6 +231,111 @@ def tm(
             "that number as a PCR melting temperature.",
             err=True,
         )
+    if any(item.contains_uracil for item in records):
+        typer.echo(
+            "Note: U was read as T so the DNA/DNA nearest-neighbor table can score it. "
+            "This is not an RNA folding temperature, and G-U wobble pairs are not modeled.",
+            err=True,
+        )
+
+
+@app.command("gc-window")
+def gc_window(
+    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="FASTA file."),
+    window: int = typer.Option(..., "--window", min=1, help="Window length in bases."),
+    step: int = typer.Option(
+        ...,
+        "--step",
+        min=1,
+        help="Bases between window starts. Equal to --window means no overlap.",
+    ),
+    as_csv: bool = typer.Option(False, "--csv", help="Print CSV instead of a text table."),
+    plot: Path | None = typer.Option(
+        None,
+        "--plot",
+        help="Write a PNG of GC% along the sequence. Needs the plot extra.",
+    ),
+) -> None:
+    """Print GC% and CpG observed/expected for each sliding window.
+
+    Coordinates are 1-based and include both ends. A window that would
+    pass the end of a record is omitted. CpG O/E is
+    (CG dinucleotides * length) / (C count * G count). It is one of the
+    numbers used to notice CpG islands; this command does not call
+    islands by itself.
+    """
+    try:
+        rows = gc_windows(fasta_file, window, step)
+    except (FileNotFoundError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    if not rows:
+        typer.echo(
+            "Note: no complete window fitted. Every record is shorter than --window.",
+            err=True,
+        )
+        raise typer.Exit(code=0)
+
+    header = ("id", "start", "end", "gc_percent", "cpg_oe", "ambiguous")
+    table = [
+        (
+            item.id,
+            str(item.start),
+            str(item.end),
+            "" if item.gc_percent is None else f"{item.gc_percent:.2f}",
+            "" if item.cpg_oe is None else f"{item.cpg_oe:.4f}",
+            str(item.ambiguous_bases),
+        )
+        for item in rows
+    ]
+    _emit_table(header, table, as_csv, na_columns=(3, 4))
+    _maybe_plot(plot, lambda destination: write_gc_window_plot(rows, destination))
+
+
+@app.command("skew")
+def skew(
+    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="FASTA file."),
+    window: int = typer.Option(..., "--window", min=1, help="Window length in bases."),
+    step: int = typer.Option(..., "--step", min=1, help="Bases between window starts."),
+    as_csv: bool = typer.Option(False, "--csv", help="Print CSV instead of a text table."),
+    plot: Path | None = typer.Option(
+        None,
+        "--plot",
+        help="Write a PNG of window skew and cumulative skew. Needs the plot extra.",
+    ),
+) -> None:
+    """Print GC skew and cumulative skew for each sliding window.
+
+    Skew is (G - C) / (G + C). Cumulative skew is the running sum of
+    those values and restarts on every record. On many bacterial
+    chromosomes the cumulative minimum sits near the replication origin
+    and the maximum near the terminus. That is a clue, not a proof.
+    """
+    try:
+        rows = skew_windows(fasta_file, window, step)
+    except (FileNotFoundError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    if not rows:
+        typer.echo(
+            "Note: no complete window fitted. Every record is shorter than --window.",
+            err=True,
+        )
+        raise typer.Exit(code=0)
+
+    header = ("id", "start", "end", "gc_skew", "cumulative_skew")
+    table = [
+        (
+            item.id,
+            str(item.start),
+            str(item.end),
+            "" if item.gc_skew is None else f"{item.gc_skew:.4f}",
+            "" if item.cumulative_skew is None else f"{item.cumulative_skew:.4f}",
+        )
+        for item in rows
+    ]
+    _emit_table(header, table, as_csv, na_columns=(3, 4))
+    _maybe_plot(plot, lambda destination: write_skew_plot(rows, destination))
 
 
 def main() -> None:
@@ -229,6 +347,37 @@ def _format_optional(value: float | None) -> str:
     if value is None:
         return "NA"
     return f"{value:.2f}"
+
+
+def _emit_table(
+    header: tuple[str, ...],
+    rows: list[tuple[str, ...]],
+    as_csv: bool,
+    na_columns: tuple[int, ...] = (),
+) -> None:
+    """Print rows. CSV keeps undefined numbers blank. Text shows NA."""
+    if as_csv:
+        _write_csv(header, rows, sys.stdout)
+        return
+    display = []
+    for row in rows:
+        cells = list(row)
+        for index in na_columns:
+            if cells[index] == "":
+                cells[index] = "NA"
+        display.append(tuple(cells))
+    typer.echo(_format_table(header, display))
+
+
+def _maybe_plot(path: Path | None, writer) -> None:
+    if path is None:
+        return
+    try:
+        writer(path)
+    except (ImportError, ValueError, OSError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(f"Wrote {path}", err=True)
 
 
 def _format_table(header: tuple[str, ...], rows: list[tuple[str, ...]]) -> str:
@@ -253,7 +402,9 @@ def _format_table(header: tuple[str, ...], rows: list[tuple[str, ...]]) -> str:
     separator = "  ".join("-" * width for width in widths)
     lines = [render(header), separator]
     lines.extend(render(row) for row in rows)
-    return "\n".join(lines)
+    # An empty last cell is padding. Drop that trailing space so a row
+    # with no flag does not end in invisible characters.
+    return "\n".join(line.rstrip() for line in lines)
 
 
 def _write_csv(

@@ -57,7 +57,10 @@ class MeltingConditions:
     millimolar. Strand concentrations are nanomolar.
 
     Attributes:
-        na_mM: Na+ concentration. Default 50 mM.
+        na_mM: Na+ concentration. Default 50 mM. Cations gather around
+            the negatively charged phosphate backbone and screen the
+            repulsion between the two strands, which raises Tm. Mg2+
+            does this more strongly, per ion, than Na+.
         k_mM: K+ concentration. Default 0.
         tris_mM: Tris buffer concentration. Default 0.
         mg_mM: Mg2+ concentration. Default 0.
@@ -127,6 +130,9 @@ class MeltingRecord:
         sequence_is_long: True when ``length`` is above
             :data:`OLIGO_GUIDANCE_LENGTH`. The Tm is still reported.
             A long value is not a primer melting temperature.
+        contains_uracil: True when the sequence contains U. U is read
+            as T for the DNA/DNA table. The number is not an RNA
+            folding temperature, and G-U wobble pairs are not modeled.
     """
 
     id: str
@@ -134,6 +140,7 @@ class MeltingRecord:
     length: int
     tm_celsius: float | None
     sequence_is_long: bool
+    contains_uracil: bool
 
 
 def melting_temperature(
@@ -250,4 +257,5 @@ def _record_from_sequence(
         length=len(cleaned),
         tm_celsius=tm,
         sequence_is_long=len(cleaned) > OLIGO_GUIDANCE_LENGTH,
+        contains_uracil="U" in cleaned.upper(),
     )

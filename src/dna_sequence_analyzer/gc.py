@@ -50,6 +50,14 @@ _AT_BASES = frozenset("ATUW")
 #   N = any base    X = any base (a non-standard letter used like N)
 _AMBIGUOUS_BASES = frozenset("RYKMBDHVNX")
 
+# Records outside this band are flagged. The cutoffs are a practical
+# warning for PCR and short-read sequencing, not a biological law.
+# Below 25% the sequence is strongly AT-rich. Above 65% it is strongly
+# GC-rich. Both extremes are where amplification and Illumina coverage
+# most often drop.
+GC_LOW_PERCENT = 25.0
+GC_HIGH_PERCENT = 65.0
+
 
 @dataclass(frozen=True)
 class SequenceStats:
@@ -70,6 +78,14 @@ class SequenceStats:
             GC fraction: A, C, G, T, U, S and W.
         ambiguous_bases: How many letters were excluded because they
             could be either GC or AT (N, R, Y, K, M, B, D, H, V and X).
+        nucleic_acid: ``dna`` if the record has T and no U, ``rna`` if
+            it has U and no T, ``mixed`` if it has both, and
+            ``unspecified`` if it has neither. U is uracil, so its
+            presence is how this tool recognizes RNA.
+        gc_flag: ``low-gc`` when GC% is below :data:`GC_LOW_PERCENT`,
+            ``high-gc`` when it is above :data:`GC_HIGH_PERCENT`, and
+            ``None`` otherwise. ``None`` also when GC% itself is
+            undefined.
     """
 
     id: str
@@ -79,6 +95,8 @@ class SequenceStats:
     gc_bases: int
     unambiguous_bases: int
     ambiguous_bases: int
+    nucleic_acid: str
+    gc_flag: str | None
 
     @property
     def name(self) -> str:
@@ -205,6 +223,43 @@ def analyze_fasta(path: str | Path) -> list[SequenceStats]:
     return [_stats_from_record(record) for record in read_fasta(path)]
 
 
+def nucleic_acid_kind(sequence: str) -> str:
+    """Classify a sequence as DNA, RNA, mixed or unspecified.
+
+    Uracil (U) is the RNA letter that replaces thymine (T). A sequence
+    that contains U and no T is called RNA here. T and no U is DNA.
+    Both letters means the record mixes the two alphabets. Neither
+    letter (for example a run of only G and C, or only N) is
+    unspecified: the molecule could be either.
+
+    Case is ignored. This does not predict secondary structure.
+    """
+    letters = {base for base in sequence.upper() if base in "TU"}
+    if letters == {"U"}:
+        return "rna"
+    if letters == {"T"}:
+        return "dna"
+    if letters == {"T", "U"}:
+        return "mixed"
+    return "unspecified"
+
+
+def gc_extreme_flag(gc_percent: float | None) -> str | None:
+    """Return ``low-gc``, ``high-gc`` or ``None``.
+
+    The thresholds are :data:`GC_LOW_PERCENT` (25) and
+    :data:`GC_HIGH_PERCENT` (65). A value equal to either boundary is
+    not flagged. Undefined GC% is not flagged.
+    """
+    if gc_percent is None:
+        return None
+    if gc_percent < GC_LOW_PERCENT:
+        return "low-gc"
+    if gc_percent > GC_HIGH_PERCENT:
+        return "high-gc"
+    return None
+
+
 def _count_bases(sequence: str) -> tuple[int, int, int]:
     """Count GC symbols, AT symbols and excluded ambiguity codes.
 
@@ -240,4 +295,6 @@ def _stats_from_record(record: SeqRecord) -> SequenceStats:
         gc_bases=gc_bases,
         unambiguous_bases=unambiguous_bases,
         ambiguous_bases=ambiguous_bases,
+        nucleic_acid=nucleic_acid_kind(sequence),
+        gc_flag=gc_extreme_flag(percent),
     )
