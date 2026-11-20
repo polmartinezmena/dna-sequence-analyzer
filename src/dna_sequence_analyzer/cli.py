@@ -7,6 +7,8 @@ Later stages will add more commands.
 """
 
 import csv
+import importlib.util
+import subprocess
 import sys
 from pathlib import Path
 from typing import TextIO
@@ -336,6 +338,53 @@ def skew(
     ]
     _emit_table(header, table, as_csv, na_columns=(3, 4))
     _maybe_plot(plot, lambda destination: write_skew_plot(rows, destination))
+
+
+@app.command("web")
+def web(
+    port: int = typer.Option(8501, "--port", min=1, help="Port for the local web app."),
+) -> None:
+    """Open the browser app (Spanish interface).
+
+    Install it first with: pip install -e ".[web]"
+    """
+    if importlib.util.find_spec("streamlit") is None:
+        typer.echo(
+            'Error: the web app needs Streamlit. Install it with: pip install -e ".[web]"',
+            err=True,
+        )
+        raise typer.Exit(code=1)
+    entry = streamlit_entrypoint()
+    if not entry.is_file():
+        typer.echo(f"Error: cannot find the web app at {entry}.", err=True)
+        raise typer.Exit(code=1)
+    raise typer.Exit(subprocess.call(web_launch_command(port)))
+
+
+def streamlit_entrypoint() -> Path:
+    """File that ``streamlit run`` should open.
+
+    Prefer ``app/streamlit_app.py`` in a repository checkout, because
+    that is also the file Streamlit Community Cloud runs. After a
+    normal install, fall back to the module shipped inside the package.
+    """
+    repo_launcher = Path(__file__).resolve().parents[2] / "app" / "streamlit_app.py"
+    if repo_launcher.is_file():
+        return repo_launcher
+    return Path(__file__).resolve().parent / "webapp.py"
+
+
+def web_launch_command(port: int = 8501) -> list[str]:
+    """Command list used by ``dna-analyzer web``. Exposed for tests."""
+    return [
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(streamlit_entrypoint()),
+        "--server.port",
+        str(port),
+    ]
 
 
 def main() -> None:

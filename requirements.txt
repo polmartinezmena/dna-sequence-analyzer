@@ -1,0 +1,6 @@
+# Dependencies for Streamlit Community Cloud.
+# The app adds src/ to the import path, so the repository does not need
+# a separate package install on Cloud. Versions match pyproject.toml.
+biopython>=1.81
+streamlit>=1.39
+plotly>=5.24

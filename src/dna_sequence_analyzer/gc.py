@@ -200,6 +200,15 @@ def read_fasta(path: str | Path) -> list[SeqRecord]:
     return records
 
 
+def analyze_records(records) -> list[SequenceStats]:
+    """Describe records that are already in memory.
+
+    This is the same calculation as :func:`analyze_fasta`, without
+    opening a file. The web app uses it for pasted text and uploads.
+    """
+    return [_stats_from_record(record) for record in records]
+
+
 def analyze_fasta(path: str | Path) -> list[SequenceStats]:
     """Read a FASTA file and describe every record.
 
@@ -220,7 +229,7 @@ def analyze_fasta(path: str | Path) -> list[SequenceStats]:
             not text, or it contains no FASTA records. A FASTA record
             has to start with a ``>`` header line.
     """
-    return [_stats_from_record(record) for record in read_fasta(path)]
+    return analyze_records(read_fasta(path))
 
 
 def nucleic_acid_kind(sequence: str) -> str:

@@ -1,7 +1,7 @@
 # dna-sequence-analyzer
 
 Herramienta de línea de comandos para analizar secuencias de ADN.
-Esta versión, la **0.2.0**, lee un archivo FASTA y, para cada secuencia,
+Esta versión, la **0.3.0**, lee un archivo FASTA y, para cada secuencia,
 dice cómo se llama, cuántos símbolos tiene, cuál es su contenido en GC
 y cuántas bases ambiguas lleva. También parte la secuencia en ventanas,
 calcula el sesgo GC y estima la temperatura de fusión de un oligo corto.
@@ -149,7 +149,7 @@ dna-analyzer --version
 ```
 
 ```text
-dna-analyzer 0.2.0
+dna-analyzer 0.3.0
 ```
 
 ## Uso
@@ -491,6 +491,55 @@ Un archivo vacío da `Error: FASTA file is empty: ...`. Un archivo que
 no empieza por `>` da `Error: Could not parse ... as FASTA`. Una carpeta
 da `Error: Path is not a file: ...`.
 
+## App web
+
+La misma herramienta se puede abrir en el navegador, sin escribir comandos
+de análisis. La interfaz está en español y llama a las funciones del
+paquete: no tiene un cálculo aparte.
+
+En tu ordenador, desde la carpeta del repositorio:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[web]"
+dna-analyzer web
+```
+
+Se abre en `http://localhost:8501`. El extra `[web]` instala Streamlit y
+Plotly. Si ya tenías el entorno de las pruebas, basta con
+`pip install -e ".[web]"`.
+
+También puedes lanzarla con el archivo que usa Streamlit Cloud:
+
+```bash
+streamlit run app/streamlit_app.py
+```
+
+En el panel de la izquierda eliges el ejemplo del repositorio, pegas un
+FASTA o una secuencia, o subes un archivo. Hay cinco pestañas: el resumen
+de GC con su gráfico de barras y la descarga CSV, el GC por ventanas, el
+sesgo con el mínimo y el máximo marcados, la Tm de un oligo con Na+, Mg2+,
+dNTPs y concentración, y una página corta de teoría.
+
+### Publicarla gratis en Streamlit Community Cloud
+
+Hace falta una cuenta de GitHub y que el repositorio sea visible para esa
+cuenta. El archivo `requirements.txt` de la raíz lista lo que Cloud instala.
+El archivo de la app es `app/streamlit_app.py`.
+
+1. Entra en [share.streamlit.io](https://share.streamlit.io) e inicia sesión con GitHub.
+2. Pulsa **Create app**.
+3. Elige el repositorio `polmartinezmena-byte/dna-sequence-analyzer`.
+4. Elige la rama que quieras publicar. Para probar esta versión, `cursor/stage1-fasta-gc-0dc7`. Cuando esté en `main`, usa `main`.
+5. En **Main file path** escribe `app/streamlit_app.py`.
+6. Pulsa **Deploy**. El primer arranque tarda un poco: Cloud instala Biopython, Streamlit y Plotly.
+7. Cuando termine, te da una dirección pública. Quien la abra ve la app, no la terminal.
+
+Si Cloud pide un requirements file y no lo detecta, el nombre tiene que ser
+exactamente `requirements.txt` en la raíz del repositorio. El tema de color
+está en `.streamlit/config.toml`.
+
 ## Cómo está organizado el código
 
 ```text
@@ -501,8 +550,11 @@ src/dna_sequence_analyzer/
     windows.py                  ventanas de GC, CpG O/E y sesgo GC
     tm.py                       Tm por vecinos más próximos, para oligos
     plots.py                    PNG opcionales; matplotlib no es obligatorio
-    cli.py                      las tablas y los comandos
+    cli.py                      las tablas y los comandos, incluido web
+    webapp.py                   la interfaz de Streamlit
+    web_input.py                pegar texto o leer un archivo subido
     __main__.py                 permite python -m dna_sequence_analyzer
+app/streamlit_app.py            archivo que abre Streamlit Cloud
 data/examples.fasta             las dos secuencias públicas de ejemplo
 tests/                          pruebas automáticas
 .github/workflows/tests.yml     ejecuta las pruebas en GitHub
@@ -559,6 +611,7 @@ y 3.13 en cada pull request.
 1. **Lectura de FASTA, GC, ventanas, sesgo GC y Tm de oligos.** Hecho.
    El GC es la 0.1.0, la Tm la 0.1.1, y las ventanas, el sesgo, la
    columna de ambiguas y el aviso de GC extremo son la 0.2.0.
+   La app web, para usar el programa sin terminal, es la 0.3.0.
 2. Transcripción a ARN y traducción a proteína en los seis marcos de lectura.
 3. Búsqueda de ORFs (open reading frames, marcos de lectura abiertos).
 4. BLAST remoto contra NCBI.

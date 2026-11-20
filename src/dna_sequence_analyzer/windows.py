@@ -95,9 +95,18 @@ def gc_windows(path: str | Path, window: int, step: int) -> list[GCWindow]:
         ValueError: ``path`` is not a FASTA file, or ``window`` or
             ``step`` is below 1.
     """
+    return gc_windows_for_records(read_fasta(path), window, step)
+
+
+def gc_windows_for_records(records, window: int, step: int) -> list[GCWindow]:
+    """Same score as :func:`gc_windows`, for records already in memory.
+
+    The web app uses this so it does not write a temporary FASTA file
+    and does not reimplement the window math.
+    """
     _check_span(window, step)
     rows: list[GCWindow] = []
-    for record in read_fasta(path):
+    for record in records:
         sequence = str(record.seq)
         for start, end in _window_bounds(len(sequence), window, step):
             chunk = sequence[start:end]
@@ -126,9 +135,14 @@ def skew_windows(path: str | Path, window: int, step: int) -> list[SkewWindow]:
         ValueError: ``path`` is not a FASTA file, or ``window`` or
             ``step`` is below 1.
     """
+    return skew_windows_for_records(read_fasta(path), window, step)
+
+
+def skew_windows_for_records(records, window: int, step: int) -> list[SkewWindow]:
+    """Same score as :func:`skew_windows`, for records already in memory."""
     _check_span(window, step)
     rows: list[SkewWindow] = []
-    for record in read_fasta(path):
+    for record in records:
         sequence = str(record.seq)
         cumulative = 0.0
         seen_defined = False
@@ -147,6 +161,23 @@ def skew_windows(path: str | Path, window: int, step: int) -> list[SkewWindow]:
                 )
             )
     return rows
+
+
+def skew_extrema(rows: list[SkewWindow]) -> tuple[SkewWindow | None, SkewWindow | None]:
+    """Return the windows with the lowest and highest cumulative skew.
+
+    Both are ``None`` when no window has a defined cumulative value.
+    If several windows share the minimum or the maximum, the first one
+    in the list is returned. On a bacterial chromosome those two points
+    are the usual candidates for the replication origin (minimum) and
+    the terminus (maximum). They are candidates, not a proof.
+    """
+    defined = [row for row in rows if row.cumulative_skew is not None]
+    if not defined:
+        return None, None
+    lowest = min(defined, key=lambda row: row.cumulative_skew)
+    highest = max(defined, key=lambda row: row.cumulative_skew)
+    return lowest, highest
 
 
 def cpg_observed_expected(sequence: str) -> float | None:
