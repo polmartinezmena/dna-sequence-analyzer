@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import streamlit as st
 from html import escape
+from dataclasses import asdict
+from dna_sequence_analyzer.lab import quality, run_metadata, report, result_csv
 
 from dna_sequence_analyzer import __version__
 from dna_sequence_analyzer.translate import TABLES, transcribe, translate_frames
@@ -28,58 +30,104 @@ from dna_sequence_analyzer.windows import (
     skew_windows_for_records,
 )
 
-_TEAL = "#0B6E6A"
-_SAND = "#C4A574"
-_CORAL = "#C65B4A"
+_BLUE = "#3278B8"
+_AMBER = "#AB792E"
+_INDIGO = "#7467AA"
+_REPO = "https://github.com/polmartinezmena/dna-sequence-analyzer"
+_STYLE = """<style>
+.block-container {max-width: 88rem; padding-top: 3rem}
+[data-testid="stMetric"] {border: 1px solid var(--st-border-color,#ccd6df);
+border-radius: .45rem; padding: .8rem 1rem; height:100%}
+[data-testid="stSidebar"] h2 {font-size:1.05rem}
+header.lab {border-bottom:2px solid #3278b8; padding-bottom:1.2rem; margin-bottom:.8rem}
+.lab small {font-weight:700;letter-spacing:.12em;color:#5288b6}
+.lab h1 {font-size:clamp(1.8rem,3vw,2.7rem);padding:.35rem 0}
+.lab p {margin:0} code.protein {overflow-wrap:anywhere}
+</style>"""
+
+
+def _example():
+    st.session_state.source = "Ejemplo del repositorio"
 
 
 def main() -> None:
-    """Draw the whole page. Streamlit runs this again on every interaction."""
-    st.set_page_config(
-        page_title="Analizador de ADN",
-        page_icon="🧬",
-        layout="wide",
-        initial_sidebar_state="expanded",
-    )
-    st.title("🧬 Analizador de secuencias de ADN")
-    st.caption(
-        f"Versión {__version__}. Contenido en GC, ventanas, sesgo y temperatura de fusión, "
-        "sin usar la terminal."
-    )
+    st.set_page_config(page_title="Analizador de ADN", layout="wide")
+    st.html(_STYLE)
+    st.html(f'<header class="lab"><small>ADN / LAB &nbsp; · &nbsp; v{__version__}</small>'
+            '<h1>Analizador de secuencias de ADN</h1>'
+            '<p>Composición de bases, perfiles locales, traducción y termodinámica de oligos.</p></header>')
     records, error = _sidebar_records()
-    if error:
-        st.error(error)
+    records = records or []
+    stats = describe_records(records)
+    checks = quality(records, stats, error) if records or error else [("Aviso", "Sin muestra cargada. Solo se evalúa el oligo.")]
+    if not records and not error:
+        with st.container(border=True):
+            st.subheader("Carga tu primera muestra")
+            st.write("Sube un archivo FASTA o pega una secuencia en el panel lateral. "
+                     "También puedes explorar las seis pestañas con la muestra de ejemplo.")
+            st.button("Cargar ejemplo", on_click=_example, type="primary")
+    if records or error:
+        with st.expander("Control de calidad", expanded=True):
+            colors = {"OK": "green", "Aviso": "orange", "Error": "red"}
+            for level, message in checks:
+                tag, detail = st.columns([1, 7])
+                tag.badge(level, color=colors[level])
+                detail.text(message)
+    st.sidebar.header("2. Parámetros")
+    st.sidebar.caption("Las concentraciones y el oligo se ajustan en Tm de primers.")
+    params = {"Origen": st.session_state.source}
+    results = {}
     tabs = st.tabs(
         ["Resumen GC", "GC por ventanas", "GC skew", "Tm de primers", "Traducción", "Aprende"]
     )
     with tabs[0]:
-        _tab_resumen(records)
+        _tab_resumen(stats, results)
     with tabs[1]:
-        _tab_ventanas(records)
+        _tab_ventanas(records, results, params)
     with tabs[2]:
-        _tab_skew(records)
+        _tab_skew(records, results, params)
     with tabs[3]:
-        _tab_tm()
+        _tab_tm(results, params)
     with tabs[4]:
-        _tab_traduccion(records)
+        _tab_traduccion(records, results, params)
     with tabs[5]:
         _tab_aprende()
+    st.sidebar.header("3. Resultados")
+    metadata = run_metadata(records, params, st.session_state.get("metadata"))
+    st.session_state.metadata = metadata
+    with st.expander("Metadatos del análisis"):
+        st.json(metadata)
+    st.sidebar.download_button("Descargar informe HTML", report(metadata, checks, results),
+                               f"analisis-{metadata['ID']}.html", "text/html")
+    available = [title for title, rows in results.items() if rows]
+    if available:
+        with st.sidebar.expander("Exportar tabla CSV"):
+            selected = st.selectbox("Tabla de resultados", available)
+            st.download_button("Descargar tabla", result_csv(results[selected]),
+                               f"{selected}-{metadata['ID']}.csv", "text/csv")
+    st.divider()
+    st.caption(f"Pol Martinez Mena · [GitHub]({_REPO}) · Versión {__version__}")
 
 
-def _tab_traduccion(records) -> None:
+def _tab_traduccion(records, results, params) -> None:
     if not records:
         st.info("Añade una secuencia para ver su traducción.")
         return
-    record, _ = _choose_record(records, "traduccion")
+    with st.sidebar.expander("Traducción"):
+        record, _ = _choose_record(records, "traduccion")
+        table = st.selectbox("Tabla del código genético (NCBI)", TABLES)
     if record is None:
         return
-    table = st.selectbox("Tabla del código genético (NCBI)", TABLES)
+    params.update({"Registro de traducción": st.session_state["pick-traduccion"], "Código genético": table})
     sequence = str(record.seq)
     try:
         frames = translate_frames(sequence, table)
     except ValueError as exc:
+        results["Traducción"] = [{"Error": str(exc)}]
         st.error(str(exc))
         return
+    results["Traducción"] = [asdict(frame) for frame in frames]
+    results["Transcripción"] = [{"ARN": transcribe(sequence)}]
     with st.expander("ARN transcrito de la hebra de entrada"):
         st.code(transcribe(sequence), language=None)
     st.caption("El asterisco (*) indica una parada. X indica un aminoácido indeterminado.")
@@ -87,7 +135,7 @@ def _tab_traduccion(records) -> None:
         st.markdown(f"**Marco {item.frame}**")
         if item.protein:
             protein = escape(item.protein).replace("*", "<mark>*</mark>")
-            st.markdown(f'<code style="overflow-wrap:anywhere">{protein}</code>',
+            st.markdown(f'<code class="protein">{protein}</code>',
                         unsafe_allow_html=True)
         else:
             st.caption("Sin codones completos.")
@@ -95,14 +143,14 @@ def _tab_traduccion(records) -> None:
 
 def _sidebar_records():
     """Read the sidebar and return ``(records, error_message)``."""
-    st.sidebar.header("Secuencias")
+    st.sidebar.header("1. Cargar muestra")
     st.sidebar.caption(
-        "Las tres primeras pestañas usan esta entrada. La pestaña de Tm tiene su propio oligo."
+        "GC y traducción usan esta muestra. La pestaña de Tm tiene su propio oligo."
     )
     source = st.sidebar.radio(
         "Origen",
-        ["Ejemplo del repositorio", "Pegar texto", "Subir un FASTA"],
-        index=0,
+        ["Subir un FASTA", "Pegar texto", "Ejemplo del repositorio"],
+        index=0, key="source",
     )
     try:
         if source == "Ejemplo del repositorio":
@@ -120,13 +168,13 @@ def _sidebar_records():
             return parse_sequence_text(pasted), None
         uploaded = st.sidebar.file_uploader("Archivo FASTA", type=["fasta", "fa", "fna", "txt"])
         if uploaded is None:
-            return None, "Sube un archivo FASTA para empezar."
+            return None, None
         return parse_sequence_text(text_from_upload(uploaded.getvalue())), None
     except (ValueError, FileNotFoundError, OSError) as exc:
         return None, str(exc)
 
 
-def _tab_resumen(records) -> None:
+def _tab_resumen(stats, results) -> None:
     st.header("Resumen de GC")
     st.write(
         "Cada fila es una secuencia. Las letras ambiguas, como N, se cuentan en su columna "
@@ -134,10 +182,9 @@ def _tab_resumen(records) -> None:
         f"{GC_LOW_PERCENT:.0f} % la marca es low-gc; por encima del "
         f"{GC_HIGH_PERCENT:.0f} %, high-gc."
     )
-    if not records:
+    if not stats:
         st.info("Cuando haya una secuencia válida, aquí verás la tabla y el gráfico.")
         return
-    stats = describe_records(records)
     defined = [item.gc_percent for item in stats if item.gc_percent is not None]
     flagged = sum(1 for item in stats if item.gc_flag)
     mean_gc = sum(defined) / len(defined) if defined else None
@@ -157,7 +204,8 @@ def _tab_resumen(records) -> None:
         }
         for item in stats
     ]
-    st.dataframe(table, width="stretch", hide_index=True)
+    results["Resumen GC"] = table
+    st.dataframe(table, row_height=30, width="stretch", hide_index=True)
     st.download_button(
         "Descargar CSV",
         data=stats_csv(stats),
@@ -175,14 +223,14 @@ def _tab_resumen(records) -> None:
         x="id",
         y="GC %",
         color="aviso",
-        color_discrete_map={"": _TEAL, "low-gc": _SAND, "high-gc": _CORAL},
+        color_discrete_map={"": _BLUE, "low-gc": _AMBER, "high-gc": _INDIGO},
         labels={"id": "Secuencia", "aviso": "Aviso"},
     )
-    figure.update_layout(yaxis_title="GC %", xaxis_title="", height=420, margin=dict(t=30))
+    figure.update_layout(yaxis_title="GC %", xaxis_title="Secuencia", height=420, margin=dict(t=30))
     st.plotly_chart(figure, width="stretch")
 
 
-def _tab_ventanas(records) -> None:
+def _tab_ventanas(records, results, params) -> None:
     st.header("GC por ventanas")
     st.write(
         "Una media de toda la secuencia esconde tramos ricos en GC o en AT. "
@@ -191,12 +239,15 @@ def _tab_ventanas(records) -> None:
     if not records:
         st.info("Carga una secuencia en el panel de la izquierda.")
         return
-    chosen, subset = _choose_record(records, "ventana")
-    if chosen is None:
-        return
-    longest = len(chosen.seq)
-    window, step = _window_controls(longest, "gc")
+    with st.sidebar.expander("GC por ventanas"):
+        chosen, subset = _choose_record(records, "ventana")
+        if chosen is None:
+            return
+        longest = len(chosen.seq)
+        window, step = _window_controls(longest, "gc")
+    params.update({"Registro · GC por ventanas": st.session_state["pick-ventana"], "Ventana · GC por ventanas (bases)": window, "Paso · GC por ventanas (bases)": step})
     rows = [row for row in gc_windows_for_records(subset, window, step) if row.id == chosen.id]
+    results["GC por ventanas"] = [asdict(row) for row in rows]
     if not rows:
         st.warning("La secuencia es más corta que la ventana. Baja el tamaño de la ventana.")
         return
@@ -209,7 +260,7 @@ def _tab_ventanas(records) -> None:
     cpg_x = [row.start for row in rows if row.cpg_oe is not None]
     cpg_y = [row.cpg_oe for row in rows if row.cpg_oe is not None]
     figure = go.Figure()
-    figure.add_trace(go.Scatter(x=gc_x, y=gc_y, name="GC %", mode="lines+markers", line=dict(color=_TEAL)))
+    figure.add_trace(go.Scatter(x=gc_x, y=gc_y, name="GC %", mode="lines+markers", line=dict(color=_BLUE)))
     figure.add_trace(
         go.Scatter(
             x=cpg_x,
@@ -217,7 +268,7 @@ def _tab_ventanas(records) -> None:
             name="CpG O/E",
             mode="lines+markers",
             yaxis="y2",
-            line=dict(color=_CORAL),
+            line=dict(color=_INDIGO),
         )
     )
     figure.update_layout(
@@ -236,7 +287,7 @@ def _tab_ventanas(records) -> None:
     )
 
 
-def _tab_skew(records) -> None:
+def _tab_skew(records, results, params) -> None:
     st.header("Sesgo GC")
     st.write(
         "El sesgo es (G − C) / (G + C). En muchos cromosomas bacterianos la suma acumulada "
@@ -246,12 +297,15 @@ def _tab_skew(records) -> None:
     if not records:
         st.info("Carga una secuencia en el panel de la izquierda.")
         return
-    chosen, subset = _choose_record(records, "sesgo")
-    if chosen is None:
-        return
-    longest = len(chosen.seq)
-    window, step = _window_controls(longest, "skew")
+    with st.sidebar.expander("GC skew"):
+        chosen, subset = _choose_record(records, "sesgo")
+        if chosen is None:
+            return
+        longest = len(chosen.seq)
+        window, step = _window_controls(longest, "skew")
+    params.update({"Registro · GC skew": st.session_state["pick-sesgo"], "Ventana · GC skew (bases)": window, "Paso · GC skew (bases)": step})
     rows = [row for row in skew_windows_for_records(subset, window, step) if row.id == chosen.id]
+    results["GC skew"] = [asdict(row) for row in rows]
     if not rows:
         st.warning("La secuencia es más corta que la ventana. Baja el tamaño de la ventana.")
         return
@@ -281,7 +335,7 @@ def _tab_skew(records) -> None:
             y=[row.gc_skew for row in defined],
             name="Sesgo de la ventana",
             mode="lines+markers",
-            line=dict(color=_TEAL),
+            line=dict(color=_BLUE),
         )
     )
     skew_figure.update_layout(
@@ -299,12 +353,12 @@ def _tab_skew(records) -> None:
             y=[row.cumulative_skew for row in cumulative],
             name="Sesgo acumulado",
             mode="lines",
-            line=dict(color=_TEAL),
+            line=dict(color=_BLUE),
         )
     )
-    _mark_extremum(cumulative_figure, lowest, "Posible origen", _CORAL)
+    _mark_extremum(cumulative_figure, lowest, "Posible origen", _INDIGO)
     if highest is not lowest:
-        _mark_extremum(cumulative_figure, highest, "Posible término", _SAND)
+        _mark_extremum(cumulative_figure, highest, "Posible término", _AMBER)
     cumulative_figure.update_layout(
         height=360,
         margin=dict(t=30),
@@ -315,7 +369,7 @@ def _tab_skew(records) -> None:
     st.plotly_chart(cumulative_figure, width="stretch")
 
 
-def _tab_tm() -> None:
+def _tab_tm(results, params) -> None:
     st.header("Temperatura de fusión de un oligo")
     st.write(
         "Esto es para un cebador corto, no para un ARNm. El cálculo es el de vecinos más próximos: "
@@ -328,6 +382,8 @@ def _tab_tm() -> None:
     magnesium = columns[1].number_input("Mg2+ (mM)", min_value=0.0, value=0.0, step=0.5)
     dntps = columns[2].number_input("dNTPs (mM)", min_value=0.0, value=0.0, step=0.1)
     oligo_nm = columns[3].number_input("Oligo (nM, cada hebra)", min_value=0.1, value=25.0, step=5.0)
+    params.update({"Oligo": oligo, "Na+ (mM)": sodium, "Mg2+ (mM)": magnesium,
+                   "dNTPs (mM)": dntps, "Oligo por hebra (nM)": oligo_nm})
     cleaned = "".join(oligo.split())
     if len(cleaned) > OLIGO_GUIDANCE_LENGTH:
         st.warning(
@@ -347,8 +403,10 @@ def _tab_tm() -> None:
             ),
         )
     except ValueError as exc:
+        results["Tm de primers"] = [{"Error": explain_tm_error(exc)}]
         st.error(explain_tm_error(exc))
         return
+    results["Tm de primers"] = [{"Tm (°C)": temperature}]
     st.metric("Tm", f"{temperature:.2f} °C")
     st.subheader("Por qué sale este número")
     st.markdown(
@@ -443,6 +501,9 @@ def _choose_record(records, key: str):
 
 
 def _window_controls(longest: int, key: str) -> tuple[int, int]:
+    if longest == 1:
+        st.caption("Ventana y paso: 1 base.")
+        return 1, 1
     upper = max(longest, 1)
     window_key = f"window-{key}"
     step_key = f"step-{key}"

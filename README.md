@@ -1,7 +1,7 @@
 # dna-sequence-analyzer
 
 Herramienta de línea de comandos para analizar secuencias de ADN.
-Esta versión, la **0.4.0**, lee un archivo FASTA y, para cada secuencia,
+Esta versión, la **0.5.0**, lee un archivo FASTA y, para cada secuencia,
 dice cómo se llama, cuántos símbolos tiene, cuál es su contenido en GC
 y cuántas bases ambiguas lleva. También parte la secuencia en ventanas,
 calcula el sesgo GC y estima la temperatura de fusión de un oligo corto.
@@ -149,7 +149,7 @@ dna-analyzer --version
 ```
 
 ```text
-dna-analyzer 0.4.0
+dna-analyzer 0.5.0
 ```
 
 ## Uso
@@ -493,6 +493,8 @@ da `Error: Path is not a file: ...`.
 
 ## App web
 
+Carga una muestra FASTA, pega bases o abre el ejemplo desde la bienvenida. El panel lateral reúne la entrada, los parámetros y la descarga del informe HTML. El control de calidad señala registros vacíos, caracteres inválidos, bases ambiguas y GC extremo. Cada informe incluye los resultados de las pestañas, el identificador de ejecución, la fecha UTC, la huella de la muestra, los parámetros y la versión. Cada tabla de resultados se puede descargar en CSV.
+
 La misma herramienta se puede abrir en el navegador, sin escribir comandos
 de análisis. La interfaz está en español y llama a las funciones del
 paquete: no tiene un cálculo aparte.
@@ -506,8 +508,7 @@ pip install -e ".[web]"
 dna-analyzer web
 ```
 
-Se abre en `http://localhost:8501`. El extra `[web]` instala Streamlit y
-Plotly. Si ya tenías el entorno de las pruebas, basta con
+Se abre en `http://localhost:8501`. El extra `[web]` instala Streamlit, Plotly y Jinja2. Si ya tenías el entorno de las pruebas, basta con
 `pip install -e ".[web]"`.
 
 También puedes lanzarla con el archivo que usa Streamlit Cloud:
@@ -516,11 +517,7 @@ También puedes lanzarla con el archivo que usa Streamlit Cloud:
 streamlit run app/streamlit_app.py
 ```
 
-En el panel de la izquierda eliges el ejemplo del repositorio, pegas un
-FASTA o una secuencia, o subes un archivo. Hay cinco pestañas: el resumen
-de GC con su gráfico de barras y la descarga CSV, el GC por ventanas, el
-sesgo con el mínimo y el máximo marcados, la Tm de un oligo con Na+, Mg2+,
-dNTPs y concentración, y una página corta de teoría.
+Las seis pestañas son **Resumen GC**, **GC por ventanas**, **GC skew**, **Tm de primers**, **Traducción** y **Aprende**. La Tm utiliza su propio oligo y sus concentraciones, independientemente de la muestra FASTA.
 
 ### Publicarla gratis en Streamlit Community Cloud
 
@@ -530,8 +527,8 @@ El archivo de la app es `app/streamlit_app.py`.
 
 1. Entra en [share.streamlit.io](https://share.streamlit.io) e inicia sesión con GitHub.
 2. Pulsa **Create app**.
-3. Elige el repositorio `polmartinezmena-byte/dna-sequence-analyzer`.
-4. Elige la rama que quieras publicar. Para probar esta versión, `cursor/stage1-fasta-gc-0dc7`. Cuando esté en `main`, usa `main`.
+3. Elige el repositorio `polmartinezmena/dna-sequence-analyzer`.
+4. Elige la rama que quieras publicar. Para probar esta versión, `ui-lab-redesign`. Cuando esté en `main`, usa `main`.
 5. En **Main file path** escribe `app/streamlit_app.py`.
 6. Pulsa **Deploy**. El primer arranque tarda un poco: Cloud instala Biopython, Streamlit y Plotly.
 7. Cuando termine, te da una dirección pública. Quien la abra ve la app, no la terminal.

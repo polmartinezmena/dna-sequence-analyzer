@@ -1,10 +1,19 @@
 [theme]
-base = "light"
-primaryColor = "#0B6E6A"
-backgroundColor = "#FBF8F3"
-secondaryBackgroundColor = "#E6F3F1"
-textColor = "#1E2A2A"
+primaryColor = "#266CA9"
 font = "sans serif"
+baseRadius = "small"
+
+[theme.light]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F1F5F9"
+textColor = "#192F44"
+borderColor = "#CAD6E1"
+
+[theme.dark]
+backgroundColor = "#142131"
+secondaryBackgroundColor = "#1E3043"
+textColor = "#E7EFF7"
+primaryColor = "#81B9EE"
 
 [browser]
 gatherUsageStats = false
