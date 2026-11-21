@@ -33,5 +33,9 @@ def test_app_example():
     assert not app.exception
     app.button[0].click().run(timeout=30)
     assert not app.exception
-    assert len(app.tabs) == 6
+    assert "ORFs" in [tab.label for tab in app.tabs]
+    next(field for field in app.number_input if field.label == "Longitud mínima (aa)").set_value(1)
+    next(button for button in app.button if button.label == "Buscar ORFs").click().run(timeout=30)
+    assert not app.exception
+    assert len(app.get("download_button")) >= 4
     assert app.dataframe

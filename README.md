@@ -1,18 +1,36 @@
 # dna-sequence-analyzer
 
 Herramienta de línea de comandos para analizar secuencias de ADN.
-Esta versión, la **0.5.0**, lee un archivo FASTA y, para cada secuencia,
+Esta versión, la **0.6.0**, lee un archivo FASTA y, para cada secuencia,
 dice cómo se llama, cuántos símbolos tiene, cuál es su contenido en GC
 y cuántas bases ambiguas lleva. También parte la secuencia en ventanas,
 calcula el sesgo GC y estima la temperatura de fusión de un oligo corto.
 
 El programa está pensado para instalarse con `pip` y usarse en cualquier
-ordenador. Las etapas siguientes (ORFs, BLAST y publicación
+ordenador. Las etapas siguientes (BLAST y publicación
 en PyPI) todavía no están hechas: la hoja de ruta está más abajo.
 
 Autor: Pol Martinez Mena, estudiante de Biotecnología en la UAB.
 
 ## Qué hace
+
+### Marcos abiertos de lectura (ORFs)
+
+```powershell
+uv run dna-analyzer orfs data/examples.fasta --min-aa 30 --table 1 --format csv
+```
+
+Busca candidatos completos en los seis marcos: un inicio y la primera parada
+inequívoca en el mismo marco. Sigue las tablas genéticas de Biopython y los
+criterios de búsqueda de [NCBI ORFfinder](https://www.ncbi.nlm.nih.gov/orffinder/).
+Con `--alternative-starts` habilitas los inicios de la tabla. Con
+`--exclude-nested` conservas el inicio más largo entre los que comparten marco y parada.
+La pestaña ORFs muestra dónde se sitúan y permite descargar CSV, FASTA de
+proteínas o GFF3. En la CLI usa `--format fasta` o `--format gff`.
+Las coordenadas exportadas empiezan en 1 y ambos extremos son inclusivos.
+El intervalo incluye la parada y la proteína no la incluye.
+
+### Entrada FASTA
 
 Un archivo FASTA guarda una o varias secuencias. Cada una empieza por
 una línea de cabecera que comienza con `>`:
@@ -149,7 +167,7 @@ dna-analyzer --version
 ```
 
 ```text
-dna-analyzer 0.5.0
+dna-analyzer 0.6.0
 ```
 
 ## Uso
@@ -641,7 +659,7 @@ en los seis marcos de la secuencia elegida.
 4. BLAST remoto contra NCBI.
 5. Línea de comandos pulida, README de publicación e instalación desde PyPI.
 
-Los ORFs, BLAST y PyPI siguen sin hacerse. La Tm no
+BLAST y la publicación en PyPI siguen pendientes. La Tm no
 los sustituye: es un cálculo para oligos cortos, apoyado en el mismo
 lector de FASTA.
 
