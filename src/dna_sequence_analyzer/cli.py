@@ -16,7 +16,8 @@ from typing import TextIO
 import typer
 
 from dna_sequence_analyzer import __version__
-from dna_sequence_analyzer.gc import GC_HIGH_PERCENT, GC_LOW_PERCENT, analyze_fasta
+from dna_sequence_analyzer.gc import GC_HIGH_PERCENT, GC_LOW_PERCENT, analyze_fasta, read_fasta
+from dna_sequence_analyzer.translate import translate_frames
 from dna_sequence_analyzer.plots import write_gc_window_plot, write_skew_plot
 from dna_sequence_analyzer.tm import (
     OLIGO_GUIDANCE_LENGTH,
@@ -119,6 +120,25 @@ def gc(
             "PCR amplification and Illumina sequencing.",
             err=True,
         )
+
+
+@app.command("translate")
+def translate(
+    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="Archivo FASTA de entrada."),
+    table: int = typer.Option(1, "--table", help="Número de tabla del código genético NCBI."),
+    frame: str = typer.Option("all", "--frame", help="all, +1, +2, +3, -1, -2 o -3."),
+) -> None:
+    """Resume la traducción de cada secuencia por marco de lectura."""
+    rows = []
+    try:
+        for record in read_fasta(fasta_file):
+            for item in translate_frames(str(record.seq), table, frame):
+                rows.append((record.id, item.frame, str(len(item.protein) - item.stops),
+                             str(item.stops), str(item.longest_stretch)))
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(_format_table(("id", "marco", "longitud_aa", "paradas", "tramo_máximo"), rows))
 
 
 @app.command("tm")

@@ -2,7 +2,7 @@
 
 The package reads FASTA, reports length and GC content, slides a
 window for local GC and GC skew, and estimates oligo melting
-temperature. Transcription, ORFs and BLAST are not in this version.
+temperature. The toolkit also transcribes DNA and translates all six frames.
 """
 
 from dna_sequence_analyzer.gc import (
@@ -27,7 +27,7 @@ from dna_sequence_analyzer.windows import (
     skew_windows,
 )
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "GCWindow",
