@@ -45,6 +45,8 @@ def test_app_example():
     app.session_state["modulo_activo"] = "ORFs"
     app.run()
     next(field for field in app.number_input if field.label == "Longitud mínima (aa)").set_value(1)
-    next(button for button in app.button if button.label == "Buscar ORFs").click().run()
+    next(button for button in app.button if button.label == "Buscar ORFs").click()
+    app.session_state["modulo_activo"] = "ORFs"
+    app.run()
     assert not app.exception
     assert app.session_state["orf_result"][2]

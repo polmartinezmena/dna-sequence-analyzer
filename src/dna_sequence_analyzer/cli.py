@@ -35,8 +35,8 @@ app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
     help=(
-        "DNA sequence analysis toolkit. "
-        "Reads FASTA and reports GC content, window composition, GC skew, and oligo Tm."
+        "Analiza secuencias de ADN y ARN. "
+        "Calcula GC y Tm, traduce, busca ORFs y consulta BLAST."
     ),
 )
 
@@ -101,14 +101,10 @@ def callback(
         "--version",
         callback=_version_callback,
         is_eager=True,
-        help="Show the program version and exit.",
+        help="Muestra la versión del programa.",
     ),
 ) -> None:
-    """Analyze DNA sequences from the command line.
-
-    ``--version`` is handled before this function body runs. The
-    parameter is what makes Typer show the flag in the help text.
-    """
+    """Analiza secuencias de ADN desde la línea de comandos."""
 
 
 @app.command("gc")
@@ -116,22 +112,19 @@ def gc(
     fasta_file: Path = typer.Argument(
         ...,
         metavar="FASTA",
-        help="FASTA file with one or more DNA (or RNA) records.",
+        help="Archivo FASTA con uno o más registros de ADN o ARN.",
     ),
     as_csv: bool = typer.Option(
         False,
         "--csv",
-        help="Print the table as CSV instead of aligned text.",
+        help="Emite la tabla como CSV.",
     ),
 ) -> None:
-    """Print length, GC content and ambiguous-base count for each record.
+    """Muestra longitud, porcentaje de GC y bases ambiguas por registro.
 
-    GC% counts G, C and S as GC, and A, T, U and W as known bases that
-    are not GC. Other ambiguity codes, such as N, are counted in the
-    ambiguous column and excluded from the percentage. U means the
-    record is reported as RNA. GC below 25% or above 65% is flagged,
-    because those extremes often bias PCR and Illumina sequencing.
-    """
+    El cálculo cuenta G, C y S como GC. A, T, U y W cuentan como bases
+    conocidas que no son GC. Los extremos por debajo de 25 % y por encima
+    de 65 % aparecen como avisos."""
     try:
         stats = analyze_fasta(fasta_file)
     except (FileNotFoundError, ValueError) as exc:
@@ -196,58 +189,50 @@ def tm(
     fasta_file: Path | None = typer.Argument(
         None,
         metavar="[FASTA]",
-        help="FASTA file of oligos. Omit it when you pass --sequence.",
+        help="Archivo FASTA de oligos. Omítelo si usas --sequence.",
     ),
     sequence: str | None = typer.Option(
         None,
         "--sequence",
         "-s",
-        help="One oligo (A, C, G, T or U) instead of a FASTA file.",
+        help="Un oligo con A, C, G, T o U, introducido directamente.",
     ),
-    na: float = typer.Option(50, "--na", help="Na+ concentration in mM."),
-    k: float = typer.Option(0, "--k", help="K+ concentration in mM."),
-    tris: float = typer.Option(0, "--tris", help="Tris concentration in mM."),
-    mg: float = typer.Option(0, "--mg", help="Mg2+ concentration in mM."),
-    dntps: float = typer.Option(0, "--dntps", help="dNTP concentration in mM."),
+    na: float = typer.Option(50, "--na", help="Concentración de Na+ (mM)."),
+    k: float = typer.Option(0, "--k", help="Concentración de K+ (mM)."),
+    tris: float = typer.Option(0, "--tris", help="Concentración de Tris (mM)."),
+    mg: float = typer.Option(0, "--mg", help="Concentración de Mg2+ (mM)."),
+    dntps: float = typer.Option(0, "--dntps", help="Concentración de dNTP (mM)."),
     dnac1: float = typer.Option(
         25,
         "--dnac1",
-        help="Concentration of the more abundant strand, usually the primer, in nM.",
+        help="Concentración de la hebra más abundante (nM).",
     ),
     dnac2: float = typer.Option(
         25,
         "--dnac2",
-        help="Concentration of the less abundant strand, usually the template, in nM.",
+        help="Concentración de la hebra menos abundante (nM).",
     ),
     saltcorr: int = typer.Option(
         5,
         "--saltcorr",
-        help="Salt correction passed to Tm_NN (0-7). 5 is SantaLucia 1998. 0 disables it.",
+        help="Corrección de sal (0–7). 5 usa SantaLucia 1998. 0 la desactiva.",
         min=0,
         max=7,
     ),
     self_complementary: bool = typer.Option(
         False,
         "--self-complementary",
-        help="Treat the oligo as binding to itself. dnac2 is then ignored.",
+        help="Trata el oligo como autocomplementario e ignora dnac2.",
     ),
     as_csv: bool = typer.Option(
         False,
         "--csv",
-        help="Print id,length,tm_celsius as CSV instead of a text table.",
+        help="Emite id,length,tm_celsius como CSV.",
     ),
 ) -> None:
-    """Estimate the melting temperature of short DNA oligos.
+    """Estima la temperatura de fusión de oligos cortos por vecinos más próximos.
 
-    Uses Biopython's nearest-neighbor function Tm_NN and the DNA/DNA
-    table DNA_NN3 (Allawi and SantaLucia, 1997). Defaults match Tm_NN:
-    50 mM Na+, no K+, Tris, Mg2+ or dNTPs, 25 nM of each strand, and
-    salt correction 5.
-
-    This is for oligos and primers of about 60 nt or fewer. A long
-    mRNA still gets a number, but that number is not a PCR melting
-    temperature. The Tm depends on sequence order, not only on GC%.
-    """
+    Pasa un FASTA o usa --sequence para una secuencia individual."""
     if fasta_file is None and sequence is None:
         typer.echo("Error: pass a FASTA file or --sequence.", err=True)
         raise typer.Exit(code=1)
@@ -313,29 +298,24 @@ def tm(
 
 @app.command("gc-window")
 def gc_window(
-    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="FASTA file."),
-    window: int = typer.Option(..., "--window", min=1, help="Window length in bases."),
+    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="Archivo FASTA."),
+    window: int = typer.Option(..., "--window", min=1, help="Longitud de la ventana en bases."),
     step: int = typer.Option(
         ...,
         "--step",
         min=1,
-        help="Bases between window starts. Equal to --window means no overlap.",
+        help="Bases entre inicios de ventana. Igual a --window evita solapamiento.",
     ),
-    as_csv: bool = typer.Option(False, "--csv", help="Print CSV instead of a text table."),
+    as_csv: bool = typer.Option(False, "--csv", help="Emite la tabla como CSV."),
     plot: Path | None = typer.Option(
         None,
         "--plot",
-        help="Write a PNG of GC% along the sequence. Needs the plot extra.",
+        help="Escribe el perfil de GC en PNG. Requiere el extra plot.",
     ),
 ) -> None:
-    """Print GC% and CpG observed/expected for each sliding window.
+    """Muestra GC y CpG observado/esperado para cada ventana deslizante.
 
-    Coordinates are 1-based and include both ends. A window that would
-    pass the end of a record is omitted. CpG O/E is
-    (CG dinucleotides * length) / (C count * G count). It is one of the
-    numbers used to notice CpG islands; this command does not call
-    islands by itself.
-    """
+    Las coordenadas empiezan en 1 e incluyen ambos extremos."""
     try:
         rows = gc_windows(fasta_file, window, step)
     except (FileNotFoundError, ValueError) as exc:
@@ -366,23 +346,17 @@ def gc_window(
 
 @app.command("skew")
 def skew(
-    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="FASTA file."),
-    window: int = typer.Option(..., "--window", min=1, help="Window length in bases."),
-    step: int = typer.Option(..., "--step", min=1, help="Bases between window starts."),
-    as_csv: bool = typer.Option(False, "--csv", help="Print CSV instead of a text table."),
+    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="Archivo FASTA."),
+    window: int = typer.Option(..., "--window", min=1, help="Longitud de la ventana en bases."),
+    step: int = typer.Option(..., "--step", min=1, help="Bases entre inicios de ventana."),
+    as_csv: bool = typer.Option(False, "--csv", help="Emite la tabla como CSV."),
     plot: Path | None = typer.Option(
         None,
         "--plot",
-        help="Write a PNG of window skew and cumulative skew. Needs the plot extra.",
+        help="Escribe el sesgo local y acumulado en PNG. Requiere el extra plot.",
     ),
 ) -> None:
-    """Print GC skew and cumulative skew for each sliding window.
-
-    Skew is (G - C) / (G + C). Cumulative skew is the running sum of
-    those values and restarts on every record. On many bacterial
-    chromosomes the cumulative minimum sits near the replication origin
-    and the maximum near the terminus. That is a clue, not a proof.
-    """
+    """Muestra el sesgo GC por ventana y su suma acumulada."""
     try:
         rows = skew_windows(fasta_file, window, step)
     except (FileNotFoundError, ValueError) as exc:
@@ -412,12 +386,9 @@ def skew(
 
 @app.command("web")
 def web(
-    port: int = typer.Option(8501, "--port", min=1, help="Port for the local web app."),
+    port: int = typer.Option(8501, "--port", min=1, help="Puerto de la app web local."),
 ) -> None:
-    """Open the browser app (Spanish interface).
-
-    Install it first with: pip install -e ".[web]"
-    """
+    """Abre la app local en el navegador. Requiere el extra web."""
     if importlib.util.find_spec("streamlit") is None:
         typer.echo(
             'Error: the web app needs Streamlit. Install it with: pip install -e ".[web]"',

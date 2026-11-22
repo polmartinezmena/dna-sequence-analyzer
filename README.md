@@ -1,14 +1,18 @@
 # dna-sequence-analyzer
 
+[![CI](https://github.com/polmartinezmena/dna-sequence-analyzer/actions/workflows/tests.yml/badge.svg)](https://github.com/polmartinezmena/dna-sequence-analyzer/actions/workflows/tests.yml)
+[![PyPI](https://img.shields.io/pypi/v/dna-sequence-analyzer)](https://pypi.org/project/dna-sequence-analyzer/)
+[![Licencia MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE)
+[![App de Streamlit](https://img.shields.io/badge/app-Streamlit-FF4B4B)](#app-web)
+
 Herramienta de línea de comandos para analizar secuencias de ADN.
-Esta versión, la **0.5.0**, lee un archivo FASTA y, para cada secuencia,
+Esta versión, la **1.0.0**, lee un archivo FASTA y, para cada secuencia,
 dice cómo se llama, cuántos símbolos tiene, cuál es su contenido en GC
 y cuántas bases ambiguas lleva. También parte la secuencia en ventanas,
 calcula el sesgo GC y estima la temperatura de fusión de un oligo corto.
 
-El programa está pensado para instalarse con `pip` y usarse en cualquier
-ordenador. Las etapas siguientes (ORFs, BLAST y publicación
-en PyPI) todavía no están hechas: la hoja de ruta está más abajo.
+También traduce en seis marcos, busca ORFs y consulta BLAST de NCBI
+para secuencias públicas. La app Streamlit comparte los cálculos de la CLI.
 
 Autor: Pol Martinez Mena, estudiante de Biotecnología en la UAB.
 
@@ -126,6 +130,14 @@ AAAA      longitud 4    GC% = 0
 
 ## Instalación
 
+Para instalar la versión publicada desde PyPI:
+
+```powershell
+pip install dna-sequence-analyzer
+pip install 'dna-sequence-analyzer[web]'
+```
+
+
 Hace falta Python 3.10 o posterior. Desde la carpeta del repositorio:
 
 ```bash
@@ -149,7 +161,7 @@ dna-analyzer --version
 ```
 
 ```text
-dna-analyzer 0.5.0
+dna-analyzer 1.0.0
 ```
 
 ## Uso
@@ -493,31 +505,22 @@ da `Error: Path is not a file: ...`.
 
 ## App web
 
-Carga una muestra FASTA, pega bases o abre el ejemplo desde la bienvenida. El panel lateral reúne la entrada, los parámetros y la descarga del informe HTML. El control de calidad señala registros vacíos, caracteres inválidos, bases ambiguas y GC extremo. Cada informe incluye los resultados de las pestañas, el identificador de ejecución, la fecha UTC, la huella de la muestra, los parámetros y la versión. Cada tabla de resultados se puede descargar en CSV.
+Desde PowerShell, dentro del repositorio:
 
-La misma herramienta se puede abrir en el navegador, sin escribir comandos
-de análisis. La interfaz está en español y llama a las funciones del
-paquete: no tiene un cálculo aparte.
-
-En tu ordenador, desde la carpeta del repositorio:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[web]"
-dna-analyzer web
+```powershell
+uv sync --extra dev --extra web --extra plot
+uv run --no-sync streamlit run app/streamlit_app.py
 ```
 
-Se abre en `http://localhost:8501`. El extra `[web]` instala Streamlit, Plotly y Jinja2. Si ya tenías el entorno de las pruebas, basta con
-`pip install -e ".[web]"`.
+En **Muestra** puedes subir un FASTA, pegar una secuencia o abrir el ejemplo público.
+El registro activo se comparte entre el resumen, el visor, ORFs y BLAST.
+**Exportar** da acceso a los metadatos. En el panel lateral también están
+el informe HTML y las tablas CSV. El informe recoge los parámetros, el control
+de calidad y la huella SHA-256 de la muestra. La Tm usa su propio oligo.
 
-También puedes lanzarla con el archivo que usa Streamlit Cloud:
-
-```bash
-streamlit run app/streamlit_app.py
-```
-
-Las seis pestañas son **Resumen GC**, **GC por ventanas**, **GC skew**, **Tm de primers**, **Traducción** y **Aprende**. La Tm utiliza su propio oligo y sus concentraciones, independientemente de la muestra FASTA.
+| Tema claro | Tema oscuro |
+| --- | --- |
+| ![Visor de secuencia en tema claro](docs/images/app-light.png) | ![Visor de secuencia en tema oscuro](docs/images/app-dark.png) |
 
 ### Publicarla gratis en Streamlit Community Cloud
 
@@ -528,7 +531,7 @@ El archivo de la app es `app/streamlit_app.py`.
 1. Entra en [share.streamlit.io](https://share.streamlit.io) e inicia sesión con GitHub.
 2. Pulsa **Create app**.
 3. Elige el repositorio `polmartinezmena/dna-sequence-analyzer`.
-4. Elige la rama que quieras publicar. Para probar esta versión, `ui-lab-redesign`. Cuando esté en `main`, usa `main`.
+4. Selecciona la rama `main` una vez fusionada la versión.
 5. En **Main file path** escribe `app/streamlit_app.py`.
 6. Pulsa **Deploy**. El primer arranque tarda un poco: Cloud instala Biopython, Streamlit y Plotly.
 7. Cuando termine, te da una dirección pública. Quien la abra ve la app, no la terminal.
@@ -600,8 +603,8 @@ acumulada vuelve a cero al cambiar de registro, y que una ventana que
 no cabe no se inventa. Si matplotlib está instalado, también se
 comprueba que `--plot` escribe un PNG.
 
-En GitHub, el workflow `Tests` ejecuta lo mismo con Python 3.10, 3.12
-y 3.13 en cada pull request.
+En GitHub, el workflow `Tests` ejecuta pytest con Python 3.10, 3.11, 3.12
+y 3.13, y comprueba el lint con Ruff.
 
 ## Transcripción y traducción en seis marcos
 
@@ -630,20 +633,41 @@ Se omiten las bases finales que no forman un triplete completo. En la
 pestaña **Traducción** puedes consultar el ARN y ver cada parada resaltada
 en los seis marcos de la secuencia elegida.
 
-## Hoja de ruta
+## ORFs y BLAST
 
-1. **Lectura de FASTA, GC, ventanas, sesgo GC y Tm de oligos.** Hecho.
-   El GC es la 0.1.0, la Tm la 0.1.1, y las ventanas, el sesgo, la
-   columna de ambiguas y el aviso de GC extremo son la 0.2.0.
-   La app web, para usar el programa sin terminal, es la 0.3.0.
-2. Transcripción a ARN y traducción a proteína en los seis marcos de lectura (disponible desde la 0.4.0).
-3. Búsqueda de ORFs (open reading frames, marcos de lectura abiertos).
-4. BLAST remoto contra NCBI.
-5. Línea de comandos pulida, README de publicación e instalación desde PyPI.
+```powershell
+dna-analyzer orfs data/examples.fasta --min-aa 30 --table 1 --nested --format csv
+dna-analyzer orfs data/examples.fasta --allow-no-stop --format gff
+dna-analyzer orfs data/examples.fasta --min-aa 30 --format fasta
+```
 
-Los ORFs, BLAST y PyPI siguen sin hacerse. La Tm no
-los sustituye: es un cálculo para oligos cortos, apoyado en el mismo
-lector de FASTA.
+Un marco abierto empieza en un codón de inicio de la tabla genética elegida y
+termina en la primera parada del mismo marco. La opción `--allow-no-stop`
+incluye candidatos que alcanzan el final sin parada, usando solo codones
+completos. Las coordenadas empiezan en 1, incluyen ambos extremos y siempre
+se refieren a la secuencia original, también en la hebra reversa.
+
+Para BLAST, configura `NCBI_EMAIL` en el entorno y usa un FASTA público con
+un solo registro. `blastn` usa `nt` o `refseq_rna`. Para una proteína, por ejemplo
+un ORF exportado como FASTA, usa `blastp` con `nr`.
+
+```powershell
+$env:NCBI_EMAIL = 'tu-correo-de-contacto'
+dna-analyzer blast .\consulta-publica.fasta --program blastn --db nt --evalue 0.01 --max-hits 10
+dna-analyzer blast .\proteina-publica.fasta --program blastp --db nr --timeout 300
+```
+
+La identidad se calcula en el mejor alineamiento local y la cobertura suma
+el intervalo cubierto por todos los alineamientos del resultado, sin duplicar
+las posiciones solapadas. La caché usa un hash de la consulta y sus parámetros.
+El servicio es remoto. Envía únicamente secuencias públicas.
+
+## Referencias
+
+- [NCBI, tablas del código genético](https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi).
+- [NCBI, API de BLAST](https://blast.ncbi.nlm.nih.gov/doc/blast-help/urlapi.html).
+- [NCBI, reglas de uso del servicio BLAST](https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Web&DOC_TYPE=DeveloperInfo&PAGE_TYPE=BlastDocs).
+- [SantaLucia, 1998, termodinámica de vecinos más próximos](https://doi.org/10.1073/pnas.95.4.1460).
 
 ## Qué he aprendido
 

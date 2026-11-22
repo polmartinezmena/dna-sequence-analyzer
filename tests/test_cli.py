@@ -2,11 +2,19 @@
 
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from dna_sequence_analyzer.cli import app
 
 runner = CliRunner()
+
+
+@pytest.mark.parametrize("command", ["gc", "gc-window", "skew", "translate", "tm", "orfs", "blast", "web"])
+def test_command_help_exits_successfully(command):
+    result = runner.invoke(app, [command, "--help"], prog_name="dna-analyzer")
+    assert result.exit_code == 0
+    assert f"dna-analyzer {command}" in result.output
 
 
 def test_gc_command_prints_an_aligned_table(tmp_path: Path) -> None:
@@ -113,7 +121,7 @@ def test_version_is_printed() -> None:
     result = runner.invoke(app, ["--version"])
 
     assert result.exit_code == 0
-    assert result.stdout.strip() == "dna-analyzer 0.5.0"
+    assert result.stdout.strip() == "dna-analyzer 1.0.0"
 
 
 def test_tm_command_prints_nearest_neighbor_temperature(tmp_path: Path) -> None:

@@ -117,6 +117,8 @@ def bundled_example_fasta() -> Path:
     files available. An installed copy that dropped the ``data`` folder
     gets a clear error instead of a missing-file traceback.
     """
+    from importlib.metadata import PackageNotFoundError, distribution
+
     package_dir = Path(__file__).resolve().parent
     candidates = [
         package_dir.parents[1] / "data" / "examples.fasta",
@@ -126,6 +128,16 @@ def bundled_example_fasta() -> Path:
     for path in candidates:
         if path.is_file():
             return path
+    try:
+        installed = distribution("dna-sequence-analyzer")
+    except PackageNotFoundError:
+        installed = None
+    if installed is not None:
+        for entry in installed.files or ():
+            if entry.parts[-3:] == ("share", "dna-sequence-analyzer", "examples.fasta"):
+                path = Path(installed.locate_file(entry))
+                if path.is_file():
+                    return path
     raise FileNotFoundError(
         "No encuentro data/examples.fasta. Abre la app desde la carpeta del repositorio."
     )

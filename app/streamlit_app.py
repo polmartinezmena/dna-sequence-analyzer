@@ -13,6 +13,6 @@ _SRC = _ROOT / "src"
 if _SRC.is_dir():
     sys.path.insert(0, str(_SRC))
 
-from dna_sequence_analyzer.webapp import main
+from dna_sequence_analyzer.webapp import main  # noqa: E402
 
 main()
