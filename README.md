@@ -3,7 +3,7 @@
 [![CI](https://github.com/polmartinezmena/dna-sequence-analyzer/actions/workflows/tests.yml/badge.svg)](https://github.com/polmartinezmena/dna-sequence-analyzer/actions/workflows/tests.yml)
 [![PyPI](https://img.shields.io/pypi/v/dna-sequence-analyzer)](https://pypi.org/project/dna-sequence-analyzer/)
 [![Licencia MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE)
-[![App de Streamlit](https://img.shields.io/badge/app-Streamlit-FF4B4B)](#app-web)
+[![Web pública](https://img.shields.io/badge/web-GitHub%20Pages-E08A2E)](https://polmartinezmena.github.io/dna-sequence-analyzer/)
 
 Herramienta de línea de comandos para analizar secuencias de ADN.
 Esta versión, la **1.0.0**, lee un archivo FASTA y, para cada secuencia,
@@ -12,7 +12,7 @@ y cuántas bases ambiguas lleva. También parte la secuencia en ventanas,
 calcula el sesgo GC y estima la temperatura de fusión de un oligo corto.
 
 También traduce en seis marcos, busca ORFs y consulta BLAST de NCBI
-para secuencias públicas. La app Streamlit comparte los cálculos de la CLI.
+para secuencias públicas. La web estática ofrece análisis desde el navegador.
 
 Autor: Pol Martinez Mena, estudiante de Biotecnología en la UAB.
 
@@ -502,59 +502,54 @@ Error: No se encontró el archivo FASTA: data/no-existe.fasta
 Si el archivo está vacío, no se puede leer como FASTA o la ruta apunta a una
 carpeta, el comando muestra el motivo en español y termina con código 1.
 
-## App web
+## Web pública
 
-Desde PowerShell, dentro del repositorio:
+[Abre DNA Sequence Analyzer en GitHub Pages](https://polmartinezmena.github.io/dna-sequence-analyzer/).
+
+La web procesa FASTA en el navegador y ofrece visor regional, perfiles de
+GC y CpG, sesgo GC, traducción, ORFs y Tm. Puedes importar un archivo,
+arrastrarlo o pegar el texto. **Exportar** descarga el resumen CSV, las
+proteínas de los ORFs en FASTA, sus coordenadas en GFF3 o un informe HTML.
+Tras la primera visita, la PWA guarda los recursos y el ejemplo para
+trabajar sin conexión.
+
+**BLAST** requiere conexión. El enlace abre el formulario de NCBI con la
+secuencia del registro o la proteína del ORF seleccionado. Para consultas
+que superan el límite del enlace, se muestra la secuencia para copiarla.
+La búsqueda se inicia desde NCBI.
+
+### Probar la web en local
+
+Desde la raíz del repositorio, con Python instalado:
+
+```powershell
+python -m http.server -d web 8000
+```
+
+Si usas uv en Windows:
+
+```powershell
+uv run --no-sync python -m http.server -d web 8000
+```
+
+Abre [http://localhost:8000/](http://localhost:8000/). Para ejecutar las
+pruebas de paridad con Node.js 22 o para regenerar las referencias:
+
+```powershell
+node --test web/tests
+uv run --no-sync python scripts/export_parity_fixtures.py
+```
+
+### Streamlit en local
+
+La variante Streamlit sigue disponible como opción local y comparte los
+cálculos del paquete Python.
 
 ```powershell
 uv sync --extra dev --extra web --extra plot
 uv run --no-sync streamlit run app/streamlit_app.py
 ```
 
-La app abre en **Visor** con `examples.fasta`. En **Muestra** puedes elegir
-un registro o abrir **Importar FASTA** para subir un archivo, pegar texto
-o volver al ejemplo. Los comentarios `;` y `#` antes de la primera cabecera
-se omiten y se indican en el control de calidad.
-
-- **Visor** muestra las bases numeradas, el perfil GC de la región y los
-  ORFs que se solapan con ella. La región usa coordenadas inclusivas desde 1,
-  admite hasta 500 pb y se recuerda por registro.
-- **Resumen** compara la composición, el CpG observado/esperado y el
-  sesgo GC. El GC de la muestra se calcula con las bases definidas de todos los registros.
-- **Traducción** alinea los seis marcos y permite descargar la proteína seleccionada.
-- **ORFs** busca candidatos en ambas hebras. Por defecto empieza por ATG.
-  Puedes habilitar los inicios alternativos de la tabla elegida.
-- **BLAST** compara secuencias públicas con NCBI con tu consentimiento.
-  La app admite una consulta por sesión cada cinco minutos y hasta
-  10.000 nt en `blastn` o 2.000 aa en `blastp`.
-- **Oligo Tm** estima la temperatura de fusión de un oligo.
-- **Aprende** explica las métricas y sus límites.
-
-**Exportar**, en la cabecera, ofrece un informe HTML claro, los metadatos JSON
-y las tablas CSV de la vista. Cuando hay un resultado compatible, incluye
-la proteína FASTA o los ORFs en FASTA y GFF3. Los metadatos incluyen la huella
-SHA-256 de la muestra y los parámetros del análisis.
-
-[Captura anterior en tema claro](https://raw.githubusercontent.com/polmartinezmena/dna-sequence-analyzer/main/docs/images/app-light.png) ·
-[Captura anterior en tema oscuro](https://raw.githubusercontent.com/polmartinezmena/dna-sequence-analyzer/main/docs/images/app-dark.png)
-
-### Publicarla gratis en Streamlit Community Cloud
-
-Hace falta una cuenta de GitHub y que el repositorio sea visible para esa
-cuenta. El archivo `requirements.txt` de la raíz lista lo que Cloud instala.
-El archivo de la app es `app/streamlit_app.py`.
-
-1. Entra en [share.streamlit.io](https://share.streamlit.io) e inicia sesión con GitHub.
-2. Pulsa **Create app**.
-3. Elige el repositorio `polmartinezmena/dna-sequence-analyzer`.
-4. Selecciona la rama `main` una vez fusionada la versión.
-5. En **Main file path** escribe `app/streamlit_app.py`.
-6. Pulsa **Deploy**. El primer arranque tarda un poco: Cloud instala Biopython, Streamlit y Plotly.
-7. Cuando termine, te da una dirección pública. Quien la abra ve la app, no la terminal.
-
-Si Cloud pide un requirements file y no lo detecta, el nombre tiene que ser
-exactamente `requirements.txt` en la raíz del repositorio. El tema de color
-está en `.streamlit/config.toml`.
 
 ## Cómo está organizado el código
 
@@ -572,9 +567,10 @@ src/dna_sequence_analyzer/
     webapp.py                   punto de entrada de Streamlit
     web_input.py                pegar texto o leer un archivo subido
     __main__.py                 permite python -m dna_sequence_analyzer
-app/streamlit_app.py            archivo que abre Streamlit Cloud
+app/streamlit_app.py            entrada de Streamlit en local
 data/examples.fasta             las dos secuencias públicas de ejemplo
-tests/                          pruebas automáticas
+tests/                          pruebas de Python
+web/                            web estática, PWA y pruebas JavaScript
 .github/workflows/tests.yml     ejecuta las pruebas en GitHub
 ```
 

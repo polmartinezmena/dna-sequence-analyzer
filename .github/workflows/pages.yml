@@ -1,0 +1,44 @@
+name: Publicar en GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      - run: node --test web/tests
+      - name: Prepare static files
+        if: github.repository == 'polmartinezmena/dna-sequence-analyzer' && github.ref == 'refs/heads/main'
+        run: rsync -a --exclude=/tests/ web/ _site/
+      - uses: actions/upload-pages-artifact@v4
+        if: github.repository == 'polmartinezmena/dna-sequence-analyzer' && github.ref == 'refs/heads/main'
+        with:
+          path: _site/
+
+  deploy:
+    if: github.repository == 'polmartinezmena/dna-sequence-analyzer' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
