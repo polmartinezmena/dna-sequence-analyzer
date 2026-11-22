@@ -53,7 +53,7 @@ body {{background:var(--lab-surface);color:var(--lab-text);font:14px/1.5 Inter,s
 .sequence-row {{display:grid;grid-template-columns:5rem repeat(60,1ch);min-width:max-content;gap:0 2px}}
 .sequence-row span {{text-align:center;min-width:0}}
 .sequence-row .track {{text-align:left;color:var(--lab-muted)}}
-.sequence-row .tick {{text-align:left}}
+.sequence-row .tick {{text-align:left;min-width:max-content;position:relative;z-index:1}}
 .sequence-row .base {{border-bottom:2px solid var(--base);color:var(--lab-text)}}
 .sequence-row .complement {{opacity:.65}}
 .sequence-row .met {{color:var(--lab-ok);font-weight:bold}}
