@@ -520,7 +520,7 @@ de calidad y la huella SHA-256 de la muestra. La Tm usa su propio oligo.
 
 | Tema claro | Tema oscuro |
 | --- | --- |
-| ![Visor de secuencia en tema claro](docs/images/app-light.png) | ![Visor de secuencia en tema oscuro](docs/images/app-dark.png) |
+| ![Visor de secuencia en tema claro](https://raw.githubusercontent.com/polmartinezmena/dna-sequence-analyzer/main/docs/images/app-light.png) | ![Visor de secuencia en tema oscuro](https://raw.githubusercontent.com/polmartinezmena/dna-sequence-analyzer/main/docs/images/app-dark.png) |
 
 ### Publicarla gratis en Streamlit Community Cloud
 
