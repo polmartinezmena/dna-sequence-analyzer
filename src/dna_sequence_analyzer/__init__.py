@@ -27,7 +27,7 @@ from dna_sequence_analyzer.windows import (
     skew_windows,
 )
 
-__version__ = "0.7.0"
+__version__ = "1.0.0"
 
 __all__ = [
     "GCWindow",

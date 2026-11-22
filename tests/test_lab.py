@@ -31,11 +31,21 @@ def test_app_example():
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app/streamlit_app.py"))
     app.run(timeout=30)
     assert not app.exception
-    app.button[0].click().run(timeout=30)
+    assert app.session_state["records"][0].id == "NM_000207.3"
+    app.button(key="nav-Traducción").click().run()
     assert not app.exception
-    assert "ORFs" in [tab.label for tab in app.tabs]
+    assert any('<pre class="lab-protein">' in entry.proto.body for entry in app.get("html"))
+    app.button(key="nav-ORFs").click().run()
     next(field for field in app.number_input if field.label == "Longitud mínima (aa)").set_value(1)
-    next(button for button in app.button if button.label == "Buscar ORFs").click().run(timeout=30)
+    app.button(key="buscar-orfs").click().run()
     assert not app.exception
-    assert len(app.get("download_button")) >= 4
-    assert app.dataframe
+    assert app.session_state["orf_result"][2]
+
+
+def test_global_gc_is_weighted_and_excludes_ambiguous_bases():
+    from dna_sequence_analyzer.lab import global_gc_percent
+    from dna_sequence_analyzer.web_input import describe_records, parse_sequence_text
+
+    stats = describe_records(parse_sequence_text(">corta\nGCNN\n>larga\nAAAAAAAA"))
+    assert global_gc_percent(stats) == 20
+    assert global_gc_percent([]) is None

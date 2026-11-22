@@ -8,6 +8,7 @@ Later stages will add more commands.
 
 import csv
 import importlib.util
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,10 +17,10 @@ from typing import TextIO
 import typer
 
 from dna_sequence_analyzer import __version__
+from dna_sequence_analyzer.blast import BlastOptions, search, summarize_blast
 from dna_sequence_analyzer.gc import GC_HIGH_PERCENT, GC_LOW_PERCENT, analyze_fasta, read_fasta
-from dna_sequence_analyzer.translate import translate_frames
 from dna_sequence_analyzer.orfs import export_orfs, find_orfs
-from dna_sequence_analyzer.blast import summarize_blast
+from dna_sequence_analyzer.translate import translate_frames
 from dna_sequence_analyzer.plots import write_gc_window_plot, write_skew_plot
 from dna_sequence_analyzer.tm import (
     OLIGO_GUIDANCE_LENGTH,
@@ -34,10 +35,80 @@ app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
     help=(
-        "DNA sequence analysis toolkit. "
-        "Reads FASTA and reports GC content, window composition, GC skew, and oligo Tm."
+        "Analiza secuencias de ADN y ARN. "
+        "Calcula GC y Tm, traduce, busca ORFs y consulta BLAST."
     ),
 )
+
+
+@app.command("orfs")
+def orfs(
+    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="Archivo FASTA de nucleótidos."),
+    min_aa: int = typer.Option(30, "--min-aa", min=1, help="Longitud mínima en aminoácidos."),
+    table: int = typer.Option(1, "--table", help="Tabla del código genético de NCBI."),
+    nested: bool = typer.Option(False, "--nested", help="Incluye inicios anidados en el mismo marco."),
+    allow_no_stop: bool = typer.Option(False, "--allow-no-stop", help="Incluye ORFs abiertos al final."),
+    alt_starts: bool = typer.Option(
+        False, "--alt-starts", help="Acepta también los codones de inicio alternativos de la tabla NCBI elegida"
+    ),
+    output_format: str = typer.Option("csv", "--format", help="fasta, csv o gff."),
+) -> None:
+    """Busca ORFs en las dos hebras y exporta coordenadas inclusivas desde 1."""
+    try:
+        hits = [(record.id, hit) for record in read_fasta(fasta_file) for hit in find_orfs(
+            str(record.seq), min_aa=min_aa, table=table, include_nested=nested,
+            allow_no_stop=allow_no_stop, alternative_starts=alt_starts,
+        )]
+        typer.echo(export_orfs(hits, output_format), nl=False)
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("blast")
+def blast(
+    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="Un registro FASTA público."),
+    program: str = typer.Option("blastn", "--program", help="blastn para nucleótidos; blastp para proteínas."),
+    db: str | None = typer.Option(None, "--db", help="nt, nr o refseq_rna según el programa."),
+    evalue: float = typer.Option(0.01, "--evalue", help="Valor E máximo."),
+    max_hits: int = typer.Option(20, "--max-hits", min=1, help="Número máximo de coincidencias."),
+    megablast: bool = typer.Option(True, "--megablast/--no-megablast", help="Activa MegaBLAST para blastn."),
+    timeout: float = typer.Option(300, "--timeout", help="Tiempo máximo en segundos."),
+) -> None:
+    """Envía un FASTA público a NCBI y escribe los resultados como CSV."""
+    try:
+        records = read_fasta(fasta_file)
+        if len(records) != 1:
+            raise ValueError("La consulta BLAST requiere un único registro FASTA.")
+        record = records[0]
+        options = BlastOptions(program, db or ("nr" if program == "blastp" else "nt"), evalue, max_hits, megablast)
+        hits = search(str(record.seq), options, email=os.getenv("NCBI_EMAIL"), timeout=timeout)
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    writer = csv.writer(sys.stdout, lineterminator="\n")
+    writer.writerow(("accession", "description", "identity_percent", "coverage_percent", "evalue", "bitscore"))
+    writer.writerows((hit.accession, hit.description, hit.identity, hit.coverage, hit.evalue,
+                      hit.bitscore) for hit in hits)
+
+
+@app.command("blast-report")
+def blast_report(
+    report_file: Path = typer.Argument(..., metavar="REPORT"),
+    tabular: bool = typer.Option(False, "--tabular", help="Lee BLAST+ outfmt 6 estándar."),
+) -> None:
+    """Resume un informe BLAST guardado como CSV."""
+    try:
+        with report_file.open(encoding="utf-8") as handle:
+            hits = summarize_blast(handle, "blast-tab" if tabular else "blast-xml")
+    except (OSError, ValueError, SyntaxError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    writer = csv.writer(sys.stdout, lineterminator="\n")
+    writer.writerow(("query", "subject", "aligned_columns", "identity_percent", "evalue", "bit_score"))
+    for hit in hits:
+        writer.writerow((hit.query, hit.subject, hit.aligned_columns, f"{hit.identity_percent:.2f}",
+                         hit.evalue, hit.bit_score))
 
 
 def _version_callback(value: bool) -> None:
@@ -53,14 +124,10 @@ def callback(
         "--version",
         callback=_version_callback,
         is_eager=True,
-        help="Show the program version and exit.",
+        help="Muestra la versión del programa.",
     ),
 ) -> None:
-    """Analyze DNA sequences from the command line.
-
-    ``--version`` is handled before this function body runs. The
-    parameter is what makes Typer show the flag in the help text.
-    """
+    """Analiza secuencias de ADN desde la línea de comandos."""
 
 
 @app.command("gc")
@@ -68,22 +135,19 @@ def gc(
     fasta_file: Path = typer.Argument(
         ...,
         metavar="FASTA",
-        help="FASTA file with one or more DNA (or RNA) records.",
+        help="Archivo FASTA con uno o más registros de ADN o ARN.",
     ),
     as_csv: bool = typer.Option(
         False,
         "--csv",
-        help="Print the table as CSV instead of aligned text.",
+        help="Emite la tabla como CSV.",
     ),
 ) -> None:
-    """Print length, GC content and ambiguous-base count for each record.
+    """Muestra longitud, porcentaje de GC y bases ambiguas por registro.
 
-    GC% counts G, C and S as GC, and A, T, U and W as known bases that
-    are not GC. Other ambiguity codes, such as N, are counted in the
-    ambiguous column and excluded from the percentage. U means the
-    record is reported as RNA. GC below 25% or above 65% is flagged,
-    because those extremes often bias PCR and Illumina sequencing.
-    """
+    El cálculo cuenta G, C y S como GC. A, T, U y W cuentan como bases
+    conocidas que no son GC. Los extremos por debajo de 25 % y por encima
+    de 65 % aparecen como avisos."""
     try:
         stats = analyze_fasta(fasta_file)
     except (FileNotFoundError, ValueError) as exc:
@@ -143,112 +207,60 @@ def translate(
     typer.echo(_format_table(("id", "marco", "longitud_aa", "paradas", "tramo_máximo"), rows))
 
 
-@app.command("orfs")
-def orfs(
-    fasta_file: Path = typer.Argument(..., metavar="FASTA"),
-    table: int = typer.Option(1, "--table"),
-    min_aa: int = typer.Option(30, "--min-aa", min=1),
-    alternative_starts: bool = typer.Option(False, "--alternative-starts"),
-    exclude_nested: bool = typer.Option(False, "--exclude-nested"),
-    output_format: str = typer.Option("csv", "--format", help="csv, fasta o gff."),
-) -> None:
-    """Busca marcos abiertos completos en las dos hebras."""
-    try:
-        hits = [
-            (record.id, hit)
-            for record in read_fasta(fasta_file)
-            for hit in find_orfs(
-                str(record.seq), table=table, min_aa=min_aa,
-                alternative_starts=alternative_starts, include_nested=not exclude_nested,
-            )
-        ]
-        typer.echo(export_orfs(hits, output_format), nl=False)
-    except (OSError, ValueError) as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(code=1) from exc
-
-
-@app.command("blast-report")
-def blast_report(
-    report_file: Path = typer.Argument(..., metavar="REPORT"),
-    tabular: bool = typer.Option(False, "--tabular", help="Lee BLAST+ outfmt 6 estándar."),
-) -> None:
-    """Resume un informe BLAST guardado como CSV."""
-    try:
-        with report_file.open(encoding="utf-8") as handle:
-            hits = summarize_blast(handle, "blast-tab" if tabular else "blast-xml")
-    except (OSError, ValueError, SyntaxError) as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(code=1) from exc
-    writer = csv.writer(sys.stdout, lineterminator="\n")
-    writer.writerow(("query", "subject", "aligned_columns", "identity_percent", "evalue", "bit_score"))
-    for hit in hits:
-        writer.writerow((hit.query, hit.subject, hit.aligned_columns, f"{hit.identity_percent:.2f}",
-                         hit.evalue, hit.bit_score))
-
-
 @app.command("tm")
 def tm(
     fasta_file: Path | None = typer.Argument(
         None,
         metavar="[FASTA]",
-        help="FASTA file of oligos. Omit it when you pass --sequence.",
+        help="Archivo FASTA de oligos. Omítelo si usas --sequence.",
     ),
     sequence: str | None = typer.Option(
         None,
         "--sequence",
         "-s",
-        help="One oligo (A, C, G, T or U) instead of a FASTA file.",
+        help="Un oligo con A, C, G, T o U, introducido directamente.",
     ),
-    na: float = typer.Option(50, "--na", help="Na+ concentration in mM."),
-    k: float = typer.Option(0, "--k", help="K+ concentration in mM."),
-    tris: float = typer.Option(0, "--tris", help="Tris concentration in mM."),
-    mg: float = typer.Option(0, "--mg", help="Mg2+ concentration in mM."),
-    dntps: float = typer.Option(0, "--dntps", help="dNTP concentration in mM."),
+    na: float = typer.Option(50, "--na", help="Concentración de Na+ (mM)."),
+    k: float = typer.Option(0, "--k", help="Concentración de K+ (mM)."),
+    tris: float = typer.Option(0, "--tris", help="Concentración de Tris (mM)."),
+    mg: float = typer.Option(0, "--mg", help="Concentración de Mg2+ (mM)."),
+    dntps: float = typer.Option(0, "--dntps", help="Concentración de dNTP (mM)."),
     dnac1: float = typer.Option(
         25,
         "--dnac1",
-        help="Concentration of the more abundant strand, usually the primer, in nM.",
+        help="Concentración de la hebra más abundante (nM).",
     ),
     dnac2: float = typer.Option(
         25,
         "--dnac2",
-        help="Concentration of the less abundant strand, usually the template, in nM.",
+        help="Concentración de la hebra menos abundante (nM).",
     ),
     saltcorr: int = typer.Option(
         5,
         "--saltcorr",
-        help="Salt correction passed to Tm_NN (0-7). 5 is SantaLucia 1998. 0 disables it.",
+        help="Corrección de sal (0–7). 5 usa SantaLucia 1998. 0 la desactiva.",
         min=0,
         max=7,
     ),
     self_complementary: bool = typer.Option(
         False,
         "--self-complementary",
-        help="Treat the oligo as binding to itself. dnac2 is then ignored.",
+        help="Trata el oligo como autocomplementario e ignora dnac2.",
     ),
     as_csv: bool = typer.Option(
         False,
         "--csv",
-        help="Print id,length,tm_celsius as CSV instead of a text table.",
+        help="Emite id,length,tm_celsius como CSV.",
     ),
 ) -> None:
-    """Estimate the melting temperature of short DNA oligos.
+    """Estima la temperatura de fusión de oligos cortos por vecinos más próximos.
 
-    Uses Biopython's nearest-neighbor function Tm_NN and the DNA/DNA
-    table DNA_NN3 (Allawi and SantaLucia, 1997). Defaults match Tm_NN:
-    50 mM Na+, no K+, Tris, Mg2+ or dNTPs, 25 nM of each strand, and
-    salt correction 5.
-
-    This is for oligos and primers of about 60 nt or fewer. A long
-    mRNA still gets a number, but that number is not a PCR melting
-    temperature. The Tm depends on sequence order, not only on GC%.
-    """
+    Pasa un FASTA o usa --sequence para una secuencia individual."""
     if fasta_file is None and sequence is None:
-        typer.echo("Error: pass a FASTA file or --sequence.", err=True)
+        typer.echo("Error: Indica un archivo FASTA o --sequence.", err=True)
         raise typer.Exit(code=1)
     if fasta_file is not None and sequence is not None:
-        typer.echo("Error: pass a FASTA file or --sequence, not both.", err=True)
+        typer.echo("Error: Indica un archivo FASTA o --sequence como única entrada.", err=True)
         raise typer.Exit(code=1)
     try:
         conditions = MeltingConditions(
@@ -309,29 +321,24 @@ def tm(
 
 @app.command("gc-window")
 def gc_window(
-    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="FASTA file."),
-    window: int = typer.Option(..., "--window", min=1, help="Window length in bases."),
+    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="Archivo FASTA."),
+    window: int = typer.Option(..., "--window", min=1, help="Longitud de la ventana en bases."),
     step: int = typer.Option(
         ...,
         "--step",
         min=1,
-        help="Bases between window starts. Equal to --window means no overlap.",
+        help="Bases entre inicios de ventana. Igual a --window evita solapamiento.",
     ),
-    as_csv: bool = typer.Option(False, "--csv", help="Print CSV instead of a text table."),
+    as_csv: bool = typer.Option(False, "--csv", help="Emite la tabla como CSV."),
     plot: Path | None = typer.Option(
         None,
         "--plot",
-        help="Write a PNG of GC% along the sequence. Needs the plot extra.",
+        help="Escribe el perfil de GC en PNG. Requiere el extra plot.",
     ),
 ) -> None:
-    """Print GC% and CpG observed/expected for each sliding window.
+    """Muestra GC y CpG observado/esperado para cada ventana deslizante.
 
-    Coordinates are 1-based and include both ends. A window that would
-    pass the end of a record is omitted. CpG O/E is
-    (CG dinucleotides * length) / (C count * G count). It is one of the
-    numbers used to notice CpG islands; this command does not call
-    islands by itself.
-    """
+    Las coordenadas empiezan en 1 e incluyen ambos extremos."""
     try:
         rows = gc_windows(fasta_file, window, step)
     except (FileNotFoundError, ValueError) as exc:
@@ -362,23 +369,17 @@ def gc_window(
 
 @app.command("skew")
 def skew(
-    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="FASTA file."),
-    window: int = typer.Option(..., "--window", min=1, help="Window length in bases."),
-    step: int = typer.Option(..., "--step", min=1, help="Bases between window starts."),
-    as_csv: bool = typer.Option(False, "--csv", help="Print CSV instead of a text table."),
+    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="Archivo FASTA."),
+    window: int = typer.Option(..., "--window", min=1, help="Longitud de la ventana en bases."),
+    step: int = typer.Option(..., "--step", min=1, help="Bases entre inicios de ventana."),
+    as_csv: bool = typer.Option(False, "--csv", help="Emite la tabla como CSV."),
     plot: Path | None = typer.Option(
         None,
         "--plot",
-        help="Write a PNG of window skew and cumulative skew. Needs the plot extra.",
+        help="Escribe el sesgo local y acumulado en PNG. Requiere el extra plot.",
     ),
 ) -> None:
-    """Print GC skew and cumulative skew for each sliding window.
-
-    Skew is (G - C) / (G + C). Cumulative skew is the running sum of
-    those values and restarts on every record. On many bacterial
-    chromosomes the cumulative minimum sits near the replication origin
-    and the maximum near the terminus. That is a clue, not a proof.
-    """
+    """Muestra el sesgo GC por ventana y su suma acumulada."""
     try:
         rows = skew_windows(fasta_file, window, step)
     except (FileNotFoundError, ValueError) as exc:
@@ -408,21 +409,18 @@ def skew(
 
 @app.command("web")
 def web(
-    port: int = typer.Option(8501, "--port", min=1, help="Port for the local web app."),
+    port: int = typer.Option(8501, "--port", min=1, help="Puerto de la app web local."),
 ) -> None:
-    """Open the browser app (Spanish interface).
-
-    Install it first with: pip install -e ".[web]"
-    """
+    """Abre la app local en el navegador. Requiere el extra web."""
     if importlib.util.find_spec("streamlit") is None:
         typer.echo(
-            'Error: the web app needs Streamlit. Install it with: pip install -e ".[web]"',
+            'Error: La app web requiere Streamlit. Instálalo con pip install -e ".[web]"',
             err=True,
         )
         raise typer.Exit(code=1)
     entry = streamlit_entrypoint()
     if not entry.is_file():
-        typer.echo(f"Error: cannot find the web app at {entry}.", err=True)
+        typer.echo(f"Error: No se encontró la app web en {entry}.", err=True)
         raise typer.Exit(code=1)
     raise typer.Exit(subprocess.call(web_launch_command(port)))
 
@@ -442,12 +440,20 @@ def streamlit_entrypoint() -> Path:
 
 def web_launch_command(port: int = 8501) -> list[str]:
     """Command list used by ``dna-analyzer web``. Exposed for tests."""
+    from dna_sequence_analyzer.ui_theme import ACCENT, APP_BG, BORDER, CARD, TEXT
+
     return [
         sys.executable,
         "-m",
         "streamlit",
         "run",
         str(streamlit_entrypoint()),
+        "--theme.base", "light",
+        "--theme.primaryColor", ACCENT,
+        "--theme.backgroundColor", APP_BG,
+        "--theme.secondaryBackgroundColor", CARD,
+        "--theme.textColor", TEXT,
+        "--theme.borderColor", BORDER,
         "--server.port",
         str(port),
     ]
@@ -492,7 +498,7 @@ def _maybe_plot(path: Path | None, writer) -> None:
     except (ImportError, ValueError, OSError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
-    typer.echo(f"Wrote {path}", err=True)
+    typer.echo(f"Archivo guardado en {path}", err=True)
 
 
 def _format_table(header: tuple[str, ...], rows: list[tuple[str, ...]]) -> str:

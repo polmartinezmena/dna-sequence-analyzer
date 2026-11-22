@@ -1,0 +1,4 @@
+QBlastInfoBegin
+    RID = FIXTURE123
+    RTOE = 12
+QBlastInfoEnd

@@ -1,0 +1,4 @@
+QBlastInfoBegin
+    Status=READY
+    ThereAreHits=yes
+QBlastInfoEnd

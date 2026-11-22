@@ -4,16 +4,16 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dna-sequence-analyzer"
-version = "0.7.0"
+version = "1.0.0"
 description = "DNA sequence analysis toolkit with a command line and a Streamlit web app."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Pol Martinez Mena", email = "pol.martinez.mena@gmail.com" }]
-keywords = ["bioinformatics", "fasta", "gc-content", "dna"]
+keywords = ["bioinformatics", "fasta", "gc-content", "dna", "orf", "blast"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Environment :: Console",
     "Intended Audience :: Education",
     "Intended Audience :: Science/Research",
@@ -33,11 +33,12 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 plot = ["matplotlib>=3.8"]
-web = ["streamlit>=1.51", "plotly>=5.24", "jinja2>=3.1"]
+web = ["streamlit>=1.55", "plotly>=5.24", "jinja2>=3.1"]
 
 [project.urls]
-Homepage = "https://github.com/polmartinezmena-byte/dna-sequence-analyzer"
-Repository = "https://github.com/polmartinezmena-byte/dna-sequence-analyzer"
+Homepage = "https://polmartinezmena.github.io/dna-sequence-analyzer/"
+Repository = "https://github.com/polmartinezmena/dna-sequence-analyzer"
+Issues = "https://github.com/polmartinezmena/dna-sequence-analyzer/issues"
 
 [project.scripts]
 dna-analyzer = "dna_sequence_analyzer.cli:main"
@@ -45,9 +46,15 @@ dna-analyzer = "dna_sequence_analyzer.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.data-files]
+"share/dna-sequence-analyzer" = ["data/examples.fasta"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
 
-[tool.setuptools.data-files]
-"share/dna-sequence-analyzer" = ["data/examples.fasta"]
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]

@@ -1,63 +1,22 @@
 # dna-sequence-analyzer
 
+[![CI](https://github.com/polmartinezmena/dna-sequence-analyzer/actions/workflows/tests.yml/badge.svg)](https://github.com/polmartinezmena/dna-sequence-analyzer/actions/workflows/tests.yml)
+[![PyPI](https://img.shields.io/pypi/v/dna-sequence-analyzer)](https://pypi.org/project/dna-sequence-analyzer/)
+[![Licencia MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE)
+[![Web pública](https://img.shields.io/badge/web-GitHub%20Pages-E08A2E)](https://polmartinezmena.github.io/dna-sequence-analyzer/)
+
 Herramienta de línea de comandos para analizar secuencias de ADN.
-Esta versión, la **0.7.0**, lee un archivo FASTA y, para cada secuencia,
+Esta versión, la **1.0.0**, lee un archivo FASTA y, para cada secuencia,
 dice cómo se llama, cuántos símbolos tiene, cuál es su contenido en GC
 y cuántas bases ambiguas lleva. También parte la secuencia en ventanas,
 calcula el sesgo GC y estima la temperatura de fusión de un oligo corto.
 
-El programa está pensado para instalarse con `pip` y usarse en cualquier
-ordenador. La app incorpora consultas BLASTn y la CLI resume informes guardados.
+También traduce en seis marcos, busca ORFs y consulta BLAST de NCBI
+para secuencias públicas. La web estática ofrece análisis desde el navegador.
 
 Autor: Pol Martinez Mena, estudiante de Biotecnología en la UAB.
 
 ## Qué hace
-
-### Marcos abiertos de lectura (ORFs)
-
-```powershell
-uv run dna-analyzer orfs data/examples.fasta --min-aa 30 --table 1 --format csv
-```
-
-Busca candidatos completos en los seis marcos: un inicio y la primera parada
-inequívoca en el mismo marco. Sigue las tablas genéticas de Biopython y los
-criterios de búsqueda de [NCBI ORFfinder](https://www.ncbi.nlm.nih.gov/orffinder/).
-Con `--alternative-starts` habilitas los inicios de la tabla. Con
-`--exclude-nested` conservas el inicio más largo entre los que comparten marco y parada.
-La pestaña ORFs muestra dónde se sitúan y permite descargar CSV, FASTA de
-proteínas o GFF3. En la CLI usa `--format fasta` o `--format gff`.
-Las coordenadas exportadas empiezan en 1 y ambos extremos son inclusivos.
-El intervalo incluye la parada y la proteína no la incluye.
-
-**Ejemplo reproducible.** En la app, pulsa **Cargar ejemplo**, abre **ORFs**
-y selecciona `NM_000207.3`. Con la tabla 1, un mínimo de 30 aa e inicios
-solo ATG, el marco `+3` muestra un candidato de 110 aa entre las posiciones
-60 y 392. Es un intervalo de 333 nucleótidos: 330 codifican los 110
-aminoácidos y los 3 restantes forman el codón de parada.
-
-Para ver ese mismo resultado desde PowerShell:
-
-```powershell
-uv run dna-analyzer orfs data/examples.fasta --min-aa 30 --table 1 --format csv |
-    ConvertFrom-Csv |
-    Where-Object { $_.id -eq 'NM_000207.3' -and $_.frame -eq '+3' } |
-    Format-Table id, frame, start_1based, end_inclusive, length_aa
-```
-
-Verás también un candidato de 106 aa que empieza en 72 y termina en 392.
-Al desactivar **Incluir ORFs anidados** (o usar `--exclude-nested` en la CLI)
-queda el de 110 aa. Esa diferencia muestra el efecto del filtro de inicios.
-
-### Resumir resultados BLAST guardados
-
-`uv run dna-analyzer blast-report resultados.xml` convierte un informe
-BLAST XML clásico (BLAST+ `-outfmt 5`) a CSV. Para el formato tabular estándar
-(`-outfmt 6`), usa `uv run dna-analyzer blast-report resultados.tsv --tabular`.
-El comando elige el segmento con menor E-value por pareja de secuencias
-y usa el bit score para desempatar. La identidad corresponde a ese segmento
-alineado, no a la secuencia completa. Esta lectura es local.
-
-### Entrada FASTA
 
 Un archivo FASTA guarda una o varias secuencias. Cada una empieza por
 una línea de cabecera que comienza con `>`:
@@ -171,6 +130,14 @@ AAAA      longitud 4    GC% = 0
 
 ## Instalación
 
+Para instalar la versión publicada desde PyPI:
+
+```powershell
+pip install dna-sequence-analyzer
+pip install 'dna-sequence-analyzer[web]'
+```
+
+
 Hace falta Python 3.10 o posterior. Desde la carpeta del repositorio:
 
 ```bash
@@ -194,7 +161,7 @@ dna-analyzer --version
 ```
 
 ```text
-dna-analyzer 0.7.0
+dna-analyzer 1.0.0
 ```
 
 ## Uso
@@ -529,62 +496,60 @@ dna-analyzer gc data/no-existe.fasta
 ```
 
 ```text
-Error: FASTA file not found: data/no-existe.fasta
+Error: No se encontró el archivo FASTA: data/no-existe.fasta
 ```
 
-Un archivo vacío da `Error: FASTA file is empty: ...`. Un archivo que
-no empieza por `>` da `Error: Could not parse ... as FASTA`. Una carpeta
-da `Error: Path is not a file: ...`.
+Si el archivo está vacío, no se puede leer como FASTA o la ruta apunta a una
+carpeta, el comando muestra el motivo en español y termina con código 1.
 
-## App web
+## Web pública
 
-Carga una muestra FASTA, pega bases o abre el ejemplo desde la bienvenida. El panel lateral reúne la entrada, los parámetros y la descarga del informe HTML. El control de calidad señala registros vacíos, caracteres inválidos, bases ambiguas y GC extremo. Cada informe incluye los resultados de las pestañas, el identificador de ejecución, la fecha UTC, la huella de la muestra, los parámetros y la versión. Cada tabla de resultados se puede descargar en CSV.
+[Abre DNA Sequence Analyzer en GitHub Pages](https://polmartinezmena.github.io/dna-sequence-analyzer/).
 
-La misma herramienta se puede abrir en el navegador, sin escribir comandos
-de análisis. La interfaz está en español y llama a las funciones del
-paquete: no tiene un cálculo aparte.
+La web procesa FASTA en el navegador y ofrece visor regional, perfiles de
+GC y CpG, sesgo GC, traducción, ORFs y Tm. Puedes importar un archivo,
+arrastrarlo o pegar el texto. **Exportar** descarga el resumen CSV, las
+proteínas de los ORFs en FASTA, sus coordenadas en GFF3 o un informe HTML.
+Tras la primera visita, la PWA guarda los recursos y el ejemplo para
+trabajar sin conexión.
 
-En tu ordenador, desde la carpeta del repositorio:
+**BLAST** requiere conexión. El enlace abre el formulario de NCBI con la
+secuencia del registro o la proteína del ORF seleccionado. Para consultas
+que superan el límite del enlace, se muestra la secuencia para copiarla.
+La búsqueda se inicia desde NCBI.
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[web]"
-dna-analyzer web
+### Probar la web en local
+
+Desde la raíz del repositorio, con Python instalado:
+
+```powershell
+python -m http.server -d web 8000
 ```
 
-Se abre en `http://localhost:8501`. El extra `[web]` instala Streamlit, Plotly y Jinja2. Si ya tenías el entorno de las pruebas, basta con
-`pip install -e ".[web]"`.
+Si usas uv en Windows:
 
-También puedes lanzarla con el archivo que usa Streamlit Cloud:
-
-```bash
-streamlit run app/streamlit_app.py
+```powershell
+uv run --no-sync python -m http.server -d web 8000
 ```
 
-Las pestañas incluyen composición, perfiles de GC, traducción, ORFs, Tm, guía y BLAST.
-Para habilitar BLAST, configura la variable de entorno `NCBI_EMAIL` con el correo de contacto del operador antes de iniciar Streamlit.
-En la pestaña BLAST puedes enviar una accesión pública o una secuencia pública no humana.
-La búsqueda devuelve un RID; pulsa **Consultar resultado** después de un minuto.
-Los resultados se reutilizan durante la sesión. [Guía del servicio NCBI](https://blast.ncbi.nlm.nih.gov/doc/blast-help/developerinfo.html).
+Abre [http://localhost:8000/](http://localhost:8000/). Para ejecutar las
+pruebas de paridad con Node.js 22 o para regenerar las referencias:
 
-### Publicarla gratis en Streamlit Community Cloud
+```powershell
+node --test web/tests
+uv run --no-sync python scripts/export_parity_fixtures.py
+```
 
-Hace falta una cuenta de GitHub y que el repositorio sea visible para esa
-cuenta. El archivo `requirements.txt` de la raíz lista lo que Cloud instala.
-El archivo de la app es `app/streamlit_app.py`.
+### Streamlit en local
 
-1. Entra en [share.streamlit.io](https://share.streamlit.io) e inicia sesión con GitHub.
-2. Pulsa **Create app**.
-3. Elige el repositorio `polmartinezmena/dna-sequence-analyzer`.
-4. Elige la rama que quieras publicar. Para probar esta versión, `ui-lab-redesign`. Cuando esté en `main`, usa `main`.
-5. En **Main file path** escribe `app/streamlit_app.py`.
-6. Pulsa **Deploy**. El primer arranque tarda un poco: Cloud instala Biopython, Streamlit y Plotly.
-7. Cuando termine, te da una dirección pública. Quien la abra ve la app, no la terminal.
+La variante Streamlit sigue disponible como opción local y comparte los
+cálculos del paquete Python.
 
-Si Cloud pide un requirements file y no lo detecta, el nombre tiene que ser
-exactamente `requirements.txt` en la raíz del repositorio. El tema de color
-está en `.streamlit/config.toml`.
+```powershell
+uv sync --extra dev --extra web --extra plot
+uv run --no-sync streamlit run app/streamlit_app.py
+```
+
 
 ## Cómo está organizado el código
 
@@ -597,12 +562,15 @@ src/dna_sequence_analyzer/
     tm.py                       Tm por vecinos más próximos, para oligos
     plots.py                    PNG opcionales; matplotlib no es obligatorio
     cli.py                      las tablas y los comandos, incluido web
-    webapp.py                   la interfaz de Streamlit
+    app/layout.py               importación, navegación y exportación
+    app/views/                  las siete vistas de Streamlit
+    webapp.py                   punto de entrada de Streamlit
     web_input.py                pegar texto o leer un archivo subido
     __main__.py                 permite python -m dna_sequence_analyzer
-app/streamlit_app.py            archivo que abre Streamlit Cloud
+app/streamlit_app.py            entrada de Streamlit en local
 data/examples.fasta             las dos secuencias públicas de ejemplo
-tests/                          pruebas automáticas
+tests/                          pruebas de Python
+web/                            web estática, PWA y pruebas JavaScript
 .github/workflows/tests.yml     ejecuta las pruebas en GitHub
 ```
 
@@ -649,8 +617,8 @@ acumulada vuelve a cero al cambiar de registro, y que una ventana que
 no cabe no se inventa. Si matplotlib está instalado, también se
 comprueba que `--plot` escribe un PNG.
 
-En GitHub, el workflow `Tests` ejecuta lo mismo con Python 3.10, 3.12
-y 3.13 en cada pull request.
+En GitHub, el workflow `Tests` ejecuta pytest con Python 3.10, 3.11, 3.12
+y 3.13, y comprueba el lint con Ruff.
 
 ## Transcripción y traducción en seis marcos
 
@@ -679,18 +647,71 @@ Se omiten las bases finales que no forman un triplete completo. En la
 pestaña **Traducción** puedes consultar el ARN y ver cada parada resaltada
 en los seis marcos de la secuencia elegida.
 
-## Hoja de ruta
+## ORFs y BLAST
 
-1. **Lectura de FASTA, GC, ventanas, sesgo GC y Tm de oligos.** Hecho.
-   El GC es la 0.1.0, la Tm la 0.1.1, y las ventanas, el sesgo, la
-   columna de ambiguas y el aviso de GC extremo son la 0.2.0.
-   La app web, para usar el programa sin terminal, es la 0.3.0.
-2. Transcripción a ARN y traducción a proteína en los seis marcos de lectura (disponible desde la 0.4.0).
-3. Búsqueda de ORFs (open reading frames, marcos de lectura abiertos).
-4. BLAST remoto contra NCBI.
-5. Línea de comandos pulida, README de publicación e instalación desde PyPI.
+```powershell
+dna-analyzer orfs data/examples.fasta --min-aa 30 --table 1 --format csv
+dna-analyzer orfs data/examples.fasta --table 11 --alt-starts --nested --format csv
+dna-analyzer orfs data/examples.fasta --allow-no-stop --format gff
+dna-analyzer orfs data/examples.fasta --min-aa 30 --format fasta
+```
 
-La publicación en PyPI y el cambio de rama en Streamlit Cloud quedan pendientes.
+Un marco abierto empieza en ATG y termina en la primera parada del mismo
+marco. Usa `--alt-starts` para aceptar también los codones de inicio
+alternativos de la tabla NCBI elegida y `--nested` para incluir inicios
+anidados. El CSV indica la hebra, el codón real y su posición (el extremo
+derecho en la hebra inversa). La opción `--allow-no-stop`
+incluye candidatos que alcanzan el final sin parada, usando solo codones
+completos. Las coordenadas empiezan en 1, incluyen ambos extremos y siempre
+se refieren a la secuencia original, también en la hebra reversa.
+
+**Ejemplo reproducible.** En el FASTA de ejemplo, el transcrito de la insulina
+`NM_000207.3` tiene un ORF de 110 aa entre 60 y 392 en el marco `+3` y otro
+de 49 aa entre 206 y 355 en el marco `-3`. El primer intervalo abarca 333
+nucleótidos: 330 codifican los aminoácidos y 3 forman el codón de parada.
+
+```powershell
+dna-analyzer orfs data/examples.fasta --min-aa 30 --table 1 --format csv |
+    ConvertFrom-Csv |
+    Where-Object { $_.id -eq 'NM_000207.3' } |
+    Format-Table frame, start_1based, end_inclusive, length_aa
+```
+
+Con `--nested` aparece también un ORF de 106 aa entre 72 y 392 en `+3`,
+con un inicio ATG posterior y el mismo codón de parada.
+
+Para BLAST, configura `NCBI_EMAIL` en el entorno y usa un FASTA público con
+un solo registro. `blastn` usa `nt` o `refseq_rna`. Para una proteína, por ejemplo
+un ORF exportado como FASTA, usa `blastp` con `nr`.
+
+```powershell
+$env:NCBI_EMAIL = 'tu-correo-de-contacto'
+dna-analyzer blast .\consulta-publica.fasta --program blastn --db nt --megablast --evalue 0.01 --max-hits 10
+dna-analyzer blast .\proteina-publica.fasta --program blastp --db nr --timeout 300
+```
+
+MegaBLAST está activado por defecto en `blastn`. Usa `--no-megablast` para
+desactivarlo. Estos indicadores se omiten en `blastp`.
+
+La identidad se calcula en el mejor alineamiento local y la cobertura suma
+el intervalo cubierto por todos los alineamientos del resultado, sin duplicar
+las posiciones solapadas. La caché usa un hash de la consulta y sus parámetros.
+El servicio es remoto. Envía únicamente secuencias públicas.
+
+### Resumir informes BLAST guardados
+
+`dna-analyzer blast-report resultados.xml` convierte un informe BLAST XML
+clásico (BLAST+ `-outfmt 5`) a CSV. Para el formato tabular estándar
+(`-outfmt 6`), usa `dna-analyzer blast-report resultados.tsv --tabular`.
+El comando conserva el alineamiento de menor valor E por consulta y sujeto,
+y desempata por mayor puntuación en bits.
+
+## Referencias
+
+- [NCBI, tablas del código genético](https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi).
+- [NCBI, API de BLAST](https://blast.ncbi.nlm.nih.gov/doc/blast-help/urlapi.html).
+- [NCBI, reglas de uso del servicio BLAST](https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Web&DOC_TYPE=DeveloperInfo&PAGE_TYPE=BlastDocs).
+- [SantaLucia, 1998, termodinámica de vecinos más próximos](https://doi.org/10.1073/pnas.95.4.1460).
 
 ## Qué he aprendido
 

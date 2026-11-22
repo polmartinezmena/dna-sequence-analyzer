@@ -14,6 +14,33 @@ from pathlib import Path
 from dna_sequence_analyzer.windows import GCWindow, SkewWindow
 
 
+def lab_template(mode: str) -> str:
+    """Register and return a Plotly theme for the current palette."""
+    from plotly import graph_objects as go, io as pio
+
+    from dna_sequence_analyzer.ui_theme import (
+        ACCENT, BORDER, CARD, CHART_LINE, DARK_GRID, DARK_PANEL, DARK_TEXT, SERIES_2, STATUS, TEXT,
+    )
+
+    dark = mode == "dark"
+    name = "lab-dark" if dark else "lab"
+    if name not in pio.templates:
+        background, border, text = (DARK_PANEL, DARK_GRID, DARK_TEXT) if dark else (CARD, BORDER, TEXT)
+        pio.templates[name] = go.layout.Template(layout={
+            "font": {"family": "Inter, system-ui, sans-serif", "color": text},
+            "xaxis": {"gridcolor": border},
+            "yaxis": {"gridcolor": border},
+            "paper_bgcolor": background,
+            "plot_bgcolor": background,
+            "height": 260 if dark else 320,
+            "hovermode": "x unified",
+            "legend": {"orientation": "h", "x": 0, "y": 1.12},
+            "colorway": [CHART_LINE if dark else ACCENT, SERIES_2, STATUS["Aviso"]],
+            "separators": ",.",
+        })
+    return name
+
+
 def write_gc_window_plot(rows: list[GCWindow], path: str | Path) -> None:
     """Plot GC% against the 1-based window start. One line per record."""
     plt = _pyplot()

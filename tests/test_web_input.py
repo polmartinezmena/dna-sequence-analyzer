@@ -102,6 +102,8 @@ def test_web_command_points_at_the_launcher() -> None:
     assert entry.is_file()
     command = web_launch_command(8502)
     assert command[1:4] == ["-m", "streamlit", "run"]
+    assert command[5:7] == ["--theme.base", "light"]
+    assert "--theme.primaryColor" in command
     assert command[-1] == "8502"
     assert command[-2] == "--server.port"
 
@@ -117,3 +119,25 @@ def test_web_command_explains_a_missing_extra(monkeypatch) -> None:
     result = CliRunner().invoke(app, ["web"])
     assert result.exit_code == 1
     assert "Streamlit" in result.stderr
+
+
+def test_fasta_preamble_does_not_reach_biopython(tmp_path):
+    import warnings
+
+    from dna_sequence_analyzer.gc import read_fasta
+    from dna_sequence_analyzer.lab import quality
+    from dna_sequence_analyzer.web_input import read_fasta_text
+
+    plain = ">uno\nACGT\n>dos\nGG\n"
+    annotated = "\n; comentario\n  # otro\n" + plain
+    path = tmp_path / "comentado.fa"
+    path.write_text(annotated, encoding="utf-8")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        expected, _ = read_fasta_text(plain)
+        records, comments = read_fasta_text(annotated)
+        for parsed in (records, read_fasta(path), parse_sequence_text(annotated)):
+            assert [(r.id, r.seq) for r in parsed] == [(r.id, r.seq) for r in expected]
+    assert ("Aviso", "se ignoraron 2 líneas de comentario antes del primer registro") in quality(
+        records, describe_records(records), comments=comments
+    )
