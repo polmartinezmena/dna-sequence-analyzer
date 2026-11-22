@@ -21,6 +21,16 @@ def format_es(value, decimals=0, unit=""):
     return f"{number} {unit}" if unit else number
 
 
+def spanish_table(rows, decimals=None):
+    """Format displayed values while preserving numeric types for sorting."""
+    import pandas as pd
+
+    styler = pd.DataFrame(rows).style.format(decimal=",", thousands=".", precision=0, na_rep="—")
+    for column, precision in (decimals or {}).items():
+        styler.format(subset=[column], decimal=",", thousands=".", precision=precision, na_rep="—")
+    return styler
+
+
 def stylesheet(theme=None):
     """Build the same stylesheet for Streamlit and standalone HTML reports."""
     names = ("surface", "panel", "border", "text", "muted")

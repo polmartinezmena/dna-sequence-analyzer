@@ -23,3 +23,14 @@ def test_plotly_template_uses_both_palettes():
     assert light.font.color != dark.font.color
     assert light.height == dark.height == 320
     assert light.separators == dark.separators == ",."
+
+
+def test_spanish_table_preserves_numeric_sorting():
+    from dna_sequence_analyzer.ui_theme import spanish_table
+
+    styler = spanish_table([{"PB": 2500, "GC": 48.2}], {"GC": 1})
+    assert styler.data.loc[0, "PB"] == 2500
+    assert styler.data.loc[0, "GC"] == 48.2
+    html = styler.to_html()
+    assert "2.500" in html
+    assert "48,2" in html

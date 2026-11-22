@@ -17,7 +17,7 @@ from dna_sequence_analyzer.blast import BlastOptions, search, session_wait_secon
 from dna_sequence_analyzer.lab import global_gc_percent, quality, run_metadata, report, result_csv
 
 from dna_sequence_analyzer.plots import lab_template
-from dna_sequence_analyzer.ui_theme import ACCENT, SERIES_2, format_es, stylesheet
+from dna_sequence_analyzer.ui_theme import ACCENT, SERIES_2, format_es, spanish_table, stylesheet
 from dna_sequence_analyzer.viewer import render_sequence_html
 from dna_sequence_analyzer.translate import TABLES, transcribe, translate_frames
 from dna_sequence_analyzer.gc import GC_HIGH_PERCENT, GC_LOW_PERCENT
@@ -340,15 +340,15 @@ def _tab_blast(record, results, params, settings, active):
         for row in rows
     ]
     st.caption(f"Última consulta · {parameters['Programa BLAST']} · {parameters['Consulta BLAST']}")
-    st.dataframe(view, hide_index=True, width="stretch",
+    st.dataframe(spanish_table(view, {"identity": 2, "coverage": 2, "bitscore": 1}), hide_index=True, width="stretch",
                  column_order=("acceso_ncbi", "description", "identity", "coverage", "evalue", "bitscore"),
                  column_config={
                      "acceso_ncbi": st.column_config.LinkColumn("Accesión", display_text=r"/([^/]+)$"),
                      "description": "Descripción",
-                     "identity": st.column_config.NumberColumn("Identidad (%)", format="localized"),
-                     "coverage": st.column_config.NumberColumn("Cobertura (%)", format="localized"),
+                     "identity": "Identidad (%)",
+                     "coverage": "Cobertura (%)",
                      "evalue": st.column_config.NumberColumn("Valor E", format="scientific"),
-                     "bitscore": st.column_config.NumberColumn("Puntuación de bits", format="localized"),
+                     "bitscore": "Puntuación de bits",
                  })
 
 
@@ -414,11 +414,11 @@ def _tab_resumen(stats, results) -> None:
         for item in stats
     ]
     results["Resumen GC"] = table
-    st.dataframe(table, row_height=32, width="stretch", hide_index=True, column_config={
+    st.dataframe(spanish_table(table, {"GC %": 2}), row_height=32, width="stretch", hide_index=True, column_config={
         "id": st.column_config.TextColumn("Identificador", help="Identificador FASTA"),
-        "longitud": st.column_config.NumberColumn("Longitud (bases)", format="localized"),
-        "GC %": st.column_config.ProgressColumn("GC (%)", min_value=0, max_value=100, format="localized"),
-        "ambiguas": st.column_config.NumberColumn("Bases ambiguas", format="localized"),
+        "longitud": "Longitud (bases)",
+        "GC %": "GC (%)",
+        "ambiguas": "Bases ambiguas",
         "tipo": "Tipo", "aviso": "Aviso",
     })
 
