@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
 
@@ -31,10 +31,11 @@ def test_app_example():
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app/streamlit_app.py"))
     app.run(timeout=30)
     assert not app.exception
-    assert app.radio(key="source").value == "Ejemplo del repositorio"
-    assert app.dataframe
-    app.radio(key="source").set_value("Subir un FASTA").run(timeout=30)
-    next(button for button in app.button if button.label == "Cargar ejemplo").click().run(timeout=30)
+    assert app.selectbox(key="source").value == "Subir un FASTA"
+    assert any(title.value == "Importar secuencias" for title in app.title)
+    app.selectbox(key="source").set_value("Colección INS y GFP").run(timeout=30)
+    next(field for field in app.selectbox if field.label == "Registro en el visor").select("L29345.1").run(timeout=30)
+    assert any("<h1>L29345.1</h1>" in item.proto.body for item in app.get("html"))
     assert not app.exception
     assert "ORFs" in [tab.label for tab in app.tabs]
     next(field for field in app.number_input if field.label == "Longitud mínima (aa)").set_value(1)

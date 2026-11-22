@@ -16,6 +16,13 @@ textColor = "#E7F1F5"
 primaryColor = "#83C7D8"
 borderColor = "#415661"
 
+[theme.light.sidebar]
+backgroundColor = "#203b49"
+secondaryBackgroundColor = "#2e4b5a"
+textColor = "#f1f6f8"
+primaryColor = "#a1e1d8"
+borderColor = "#677f8b"
+
 [browser]
 gatherUsageStats = false
 

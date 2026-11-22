@@ -43,22 +43,27 @@ _STYLE = """<style>
 [data-testid="stMetricValue"] {font-variant-numeric: tabular-nums}
 [data-testid="stSidebar"] {border-inline-end: 1px solid var(--st-border-color)}
 [data-testid="stSidebar"] h2 {font-size:1.05rem}
-.lab {background:#183348;color:#f6fbff;padding:clamp(1.25rem,3vw,2.5rem);
-border-radius:12px;display:grid;grid-template-columns:1fr minmax(15rem,.85fr);
-align-items:center;gap:2rem}
-.lab h1 {color:inherit;font-size:clamp(1.8rem,3vw,2.9rem);letter-spacing:-.035em;
-line-height:1.05;margin:0;padding:0 0 .6rem}
-.lab p,.lab figure {margin:0}
-.lab p,.lab figcaption {color:#d0e1eb;font-size:.9rem}
-.lab figcaption {margin-bottom:.6rem;overflow-wrap:anywhere}
-.lab .bases {display:grid;grid-template-columns:repeat(12,1fr);gap:3px;max-width:29rem}
-.bases span {border-radius:2px;background:#e2e9ed;color:#172c3a;text-align:center;
-font:600 .86rem/1.65 ui-monospace,Consolas,monospace}
-.bases .base-A {background:#94dbc9}.bases .base-C {background:#a5c7ed}
-.bases .base-G {background:#f4ca8d}.bases .base-T,.bases .base-U {background:#d8bbdf}
-[data-testid="stMetric"] {border-top:1px solid var(--st-border-color);padding-top:.55rem}
+.block-container {max-width:90rem;padding-inline:clamp(1.1rem,4vw,4rem)}
+[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]{padding-top:2rem}
+.instrument {font:650 1.22rem/1.3 'Segoe UI',sans-serif;letter-spacing:-.035em;
+padding:.8rem 0 1.35rem;border-bottom:2px solid #558ca4;margin-bottom:.65rem}
+.instrument small {display:block;font:400 .78rem/1.6 Consolas,monospace;letter-spacing:0}
+.sequence-view {background:#152e3c;color:#f4f8fa;border-radius:6px;padding:1.2rem 1.45rem;
+border-left:4px solid #64c4bb;min-width:0}
+.sequence-view h1 {color:inherit;font:600 clamp(1.5rem,2.3vw,2.1rem)/1.2 Consolas,monospace;
+letter-spacing:-.035em;padding:0;overflow-wrap:anywhere}
+.sequence-view p {margin:.25rem 0 .8rem;color:#dae5e9;overflow-wrap:anywhere}
+.sequence-view figure {display:flex;flex-wrap:wrap;gap:.5rem 1.35rem;
+margin:0;padding-top:.7rem;border-top:1px solid #405965}
+.seq-group {display:grid;gap:.18rem}
+.seq-group small {color:#bdcdd5;font: .7rem/1.3 Consolas,monospace}
+.seq-group b {font:600 1rem/1.3 Consolas,monospace;letter-spacing:.06em}
+.seq-group .base-A{color:#94ded2}.seq-group .base-C{color:#adcffa}
+.seq-group .base-G{color:#ffd392}.seq-group .base-T,.seq-group .base-U{color:#efb9d7}
+.st-key-composition_metrics {border-block:1px solid var(--st-border-color);padding-block:.65rem}
+[data-testid="stMetricValue"] {font-family:Consolas,monospace;font-size:1.65rem}
 @media(max-width:760px){
-  .lab{grid-template-columns:1fr;gap:1rem}
+  .sequence-view {padding:1rem}.sequence-view figure{gap:.55rem .9rem}
   .block-container{padding-top:4.25rem}
   .st-key-composition_metrics [data-testid="stHorizontalBlock"]{
     display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem 1rem}
@@ -70,53 +75,51 @@ code.protein {overflow-wrap:anywhere}
 </style>"""
 
 
-def _example():
-    st.session_state.source = "Ejemplo del repositorio"
+_COLLECTION = "Colección INS y GFP"
 
 
-def _sample_header(records, source):
-    """Show a short, labelled preview of the first input record."""
-    track = ""
-    if records:
-        record = records[0]
-        fragment = str(record.seq[:24]).upper()
+def _sample_header(record):
+    """Display the selected FASTA record and the coordinates of each group."""
+    sequence = str(record.seq[:60]).upper()
+    groups = []
+    for offset in range(0, len(sequence), 10):
+        fragment = sequence[offset:offset + 10]
         letters = "".join(
             f'<span class="base-{base if base in "ACGTU" else "other"}">{escape(base)}</span>'
             for base in fragment
         )
-        if fragment:
-            track = (f'<figure><figcaption>{escape(record.id)} · bases 1–{len(fragment)}</figcaption>'
-                     f'<div class="bases" aria-label="{escape(fragment)}">{letters}</div></figure>')
-        count = len(records)
-        description = f'{escape(source)} · {count} {"registro" if count == 1 else "registros"}'
-    else:
-        description = "Selecciona una muestra para iniciar el análisis."
-    st.html(f'<header class="lab"><div><h1>Analizador de ADN</h1><p>{description}</p></div>{track}</header>')
+        groups.append(f'<span class="seq-group"><small>{offset + 1}–{offset + len(fragment)}</small>'
+                      f'<b>{letters}</b></span>')
+    description = record.description.removeprefix(record.id).strip()
+    detail = " · ".join(filter(None, [escape(description), f"{len(record.seq)} bases"]))
+    track = f'<figure aria-label="Secuencia y posiciones">{"".join(groups)}</figure>' if groups else ""
+    st.html(f'<section class="sequence-view"><h1>{escape(record.id)}</h1><p>{detail}</p>{track}</section>')
 
 
 def main() -> None:
-    st.set_page_config(page_title="Analizador de ADN", layout="wide")
+    st.set_page_config(page_title="DNA Sequence Analyzer", layout="wide")
     st.html(_STYLE)
+    st.sidebar.html(f'<div class="instrument">DNA Sequence Analyzer<small>v{__version__}</small></div>')
     records, error = _sidebar_records()
     records = records or []
-    _sample_header(records, st.session_state.source)
+    if records:
+        labels = record_labels(records)
+        selected = st.sidebar.selectbox("Registro en el visor", labels)
+        _sample_header(records[labels.index(selected)])
+    else:
+        st.title("Importar secuencias")
     stats = describe_records(records)
     checks = quality(records, stats, error) if records or error else [("Aviso", "Sin muestra cargada. Solo se evalúa el oligo.")]
     if not records and not error:
-        with st.container(border=True):
-            st.subheader("Carga tu primera muestra")
-            st.write("Sube un archivo FASTA o pega una secuencia en el panel lateral. "
-                     "También puedes explorar las herramientas con la muestra de ejemplo.")
-            st.button("Cargar ejemplo", on_click=_example, type="primary")
+        st.info("Selecciona un archivo FASTA en el panel de entrada para iniciar el análisis.")
     if records or error:
         issues = sum(level != "OK" for level, _ in checks)
-        with st.expander("Control de calidad · " + (f"{issues} avisos o errores" if issues else "Sin incidencias"),
+        with st.sidebar.expander("Control de calidad · " + (f"{issues} avisos o errores" if issues else "Sin incidencias"),
                          expanded=bool(issues)):
             colors = {"OK": "green", "Aviso": "orange", "Error": "red"}
             for level, message in checks:
-                tag, detail = st.columns([1, 7])
-                tag.badge(level, color=colors[level])
-                detail.text(message)
+                st.badge(level, color=colors[level])
+                st.caption(message)
     params = {"Origen": st.session_state.source}
     results = {}
     tabs = st.tabs(
@@ -291,16 +294,16 @@ def _tab_traduccion(records, results, params) -> None:
 
 def _sidebar_records():
     """Read the sidebar and return ``(records, error_message)``."""
-    st.sidebar.header("Muestra de trabajo")
-    source = st.sidebar.radio(
+    st.sidebar.header("Entrada de datos")
+    source = st.sidebar.selectbox(
         "Origen",
-        ["Subir un FASTA", "Pegar texto", "Ejemplo del repositorio"],
-        index=2, key="source",
+        ["Subir un FASTA", "Pegar texto", _COLLECTION],
+        key="source",
     )
     try:
-        if source == "Ejemplo del repositorio":
+        if source == _COLLECTION:
             path = bundled_example_fasta()
-            st.sidebar.caption(f"Archivo: `{path.name}`")
+            st.sidebar.caption("Transcritos públicos de insulina humana y GFP.")
             return parse_sequence_text(path.read_text(encoding="utf-8")), None
         if source == "Pegar texto":
             pasted = st.sidebar.text_area(
@@ -320,15 +323,15 @@ def _sidebar_records():
 
 
 def _tab_resumen(stats, results) -> None:
-    st.header("Resumen de GC")
-    st.write(
+    st.header("Composición de la muestra")
+    method = (
         "Cada fila es una secuencia. Las letras ambiguas, como N, se cuentan en su columna "
         "y no entran en el porcentaje. Por debajo del "
         f"{GC_LOW_PERCENT:.0f} % la marca es low-gc; por encima del "
         f"{GC_HIGH_PERCENT:.0f} %, high-gc."
     )
     if not stats:
-        st.info("Cuando haya una secuencia válida, aquí verás la tabla y el gráfico.")
+        st.caption("Sin registros para analizar.")
         return
     defined = [item.gc_percent for item in stats if item.gc_percent is not None]
     flagged = sum(1 for item in stats if item.gc_flag)
@@ -351,7 +354,13 @@ def _tab_resumen(stats, results) -> None:
         for item in stats
     ]
     results["Resumen GC"] = table
-    st.dataframe(table, row_height=30, width="stretch", hide_index=True)
+    st.dataframe(table, row_height=36, width="stretch", hide_index=True, column_config={
+        "id": "Identificador", "longitud": "Longitud (bases)", "ambiguas": "Bases ambiguas",
+        "tipo": "Ácido nucleico", "aviso": "Aviso",
+        "GC %": st.column_config.ProgressColumn("GC (%)", min_value=0, max_value=100, format="%.2f"),
+    })
+    with st.expander("Cálculo y umbrales de GC"):
+        st.write(method)
     st.download_button(
         "Descargar CSV",
         data=stats_csv(stats),
@@ -372,8 +381,12 @@ def _tab_resumen(stats, results) -> None:
         color_discrete_map={"": _BLUE, "low-gc": _AMBER, "high-gc": _INDIGO},
         labels={"id": "Secuencia", "aviso": "Aviso"},
     )
-    figure.update_layout(yaxis_title="GC %", yaxis_range=[0, 100], xaxis_title="Secuencia",
-                         height=360, margin=dict(t=24, b=40))
+    for threshold in (GC_LOW_PERCENT, GC_HIGH_PERCENT):
+        figure.add_hline(y=threshold, line_dash="dot", line_color="#758692",
+                         annotation_text=f"Umbral {threshold:g} %", annotation_position="top left")
+    figure.update_layout(yaxis_title="GC (%)", yaxis_range=[0, 100], xaxis_title="Secuencia",
+                         showlegend=any(row["aviso"] for row in chart_rows),
+                         bargap=.65, height=300, margin=dict(t=18, b=32))
     st.plotly_chart(figure, width="stretch")
 
 
