@@ -102,6 +102,8 @@ def test_web_command_points_at_the_launcher() -> None:
     assert entry.is_file()
     command = web_launch_command(8502)
     assert command[1:4] == ["-m", "streamlit", "run"]
+    assert command[5:7] == ["--theme.base", "light"]
+    assert "--theme.primaryColor" in command
     assert command[-1] == "8502"
     assert command[-2] == "--server.port"
 
