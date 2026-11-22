@@ -113,7 +113,7 @@ def test_version_is_printed() -> None:
     result = runner.invoke(app, ["--version"])
 
     assert result.exit_code == 0
-    assert result.stdout.strip() == "dna-analyzer 0.5.0"
+    assert result.stdout.strip() == "dna-analyzer 0.7.0"
 
 
 def test_tm_command_prints_nearest_neighbor_temperature(tmp_path: Path) -> None:

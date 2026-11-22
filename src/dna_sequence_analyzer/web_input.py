@@ -117,8 +117,11 @@ def bundled_example_fasta() -> Path:
     files available. An installed copy that dropped the ``data`` folder
     gets a clear error instead of a missing-file traceback.
     """
+    import sysconfig
+
     package_dir = Path(__file__).resolve().parent
     candidates = [
+        Path(sysconfig.get_path("data")) / "share" / "dna-sequence-analyzer" / "examples.fasta",
         package_dir.parents[1] / "data" / "examples.fasta",
         package_dir.parents[2] / "data" / "examples.fasta",
         Path.cwd() / "data" / "examples.fasta",

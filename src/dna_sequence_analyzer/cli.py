@@ -18,6 +18,8 @@ import typer
 from dna_sequence_analyzer import __version__
 from dna_sequence_analyzer.gc import GC_HIGH_PERCENT, GC_LOW_PERCENT, analyze_fasta, read_fasta
 from dna_sequence_analyzer.translate import translate_frames
+from dna_sequence_analyzer.orfs import export_orfs, find_orfs
+from dna_sequence_analyzer.blast import summarize_blast
 from dna_sequence_analyzer.plots import write_gc_window_plot, write_skew_plot
 from dna_sequence_analyzer.tm import (
     OLIGO_GUIDANCE_LENGTH,
@@ -139,6 +141,50 @@ def translate(
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(_format_table(("id", "marco", "longitud_aa", "paradas", "tramo_máximo"), rows))
+
+
+@app.command("orfs")
+def orfs(
+    fasta_file: Path = typer.Argument(..., metavar="FASTA"),
+    table: int = typer.Option(1, "--table"),
+    min_aa: int = typer.Option(30, "--min-aa", min=1),
+    alternative_starts: bool = typer.Option(False, "--alternative-starts"),
+    exclude_nested: bool = typer.Option(False, "--exclude-nested"),
+    output_format: str = typer.Option("csv", "--format", help="csv, fasta o gff."),
+) -> None:
+    """Busca marcos abiertos completos en las dos hebras."""
+    try:
+        hits = [
+            (record.id, hit)
+            for record in read_fasta(fasta_file)
+            for hit in find_orfs(
+                str(record.seq), table=table, min_aa=min_aa,
+                alternative_starts=alternative_starts, include_nested=not exclude_nested,
+            )
+        ]
+        typer.echo(export_orfs(hits, output_format), nl=False)
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+
+
+@app.command("blast-report")
+def blast_report(
+    report_file: Path = typer.Argument(..., metavar="REPORT"),
+    tabular: bool = typer.Option(False, "--tabular", help="Lee BLAST+ outfmt 6 estándar."),
+) -> None:
+    """Resume un informe BLAST guardado como CSV."""
+    try:
+        with report_file.open(encoding="utf-8") as handle:
+            hits = summarize_blast(handle, "blast-tab" if tabular else "blast-xml")
+    except (OSError, ValueError, SyntaxError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    writer = csv.writer(sys.stdout, lineterminator="\n")
+    writer.writerow(("query", "subject", "aligned_columns", "identity_percent", "evalue", "bit_score"))
+    for hit in hits:
+        writer.writerow((hit.query, hit.subject, hit.aligned_columns, f"{hit.identity_percent:.2f}",
+                         hit.evalue, hit.bit_score))
 
 
 @app.command("tm")

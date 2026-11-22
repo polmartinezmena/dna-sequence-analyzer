@@ -1,18 +1,63 @@
 # dna-sequence-analyzer
 
 Herramienta de línea de comandos para analizar secuencias de ADN.
-Esta versión, la **0.5.0**, lee un archivo FASTA y, para cada secuencia,
+Esta versión, la **0.7.0**, lee un archivo FASTA y, para cada secuencia,
 dice cómo se llama, cuántos símbolos tiene, cuál es su contenido en GC
 y cuántas bases ambiguas lleva. También parte la secuencia en ventanas,
 calcula el sesgo GC y estima la temperatura de fusión de un oligo corto.
 
 El programa está pensado para instalarse con `pip` y usarse en cualquier
-ordenador. Las etapas siguientes (ORFs, BLAST y publicación
-en PyPI) todavía no están hechas: la hoja de ruta está más abajo.
+ordenador. La app incorpora consultas BLASTn y la CLI resume informes guardados.
 
 Autor: Pol Martinez Mena, estudiante de Biotecnología en la UAB.
 
 ## Qué hace
+
+### Marcos abiertos de lectura (ORFs)
+
+```powershell
+uv run dna-analyzer orfs data/examples.fasta --min-aa 30 --table 1 --format csv
+```
+
+Busca candidatos completos en los seis marcos: un inicio y la primera parada
+inequívoca en el mismo marco. Sigue las tablas genéticas de Biopython y los
+criterios de búsqueda de [NCBI ORFfinder](https://www.ncbi.nlm.nih.gov/orffinder/).
+Con `--alternative-starts` habilitas los inicios de la tabla. Con
+`--exclude-nested` conservas el inicio más largo entre los que comparten marco y parada.
+La pestaña ORFs muestra dónde se sitúan y permite descargar CSV, FASTA de
+proteínas o GFF3. En la CLI usa `--format fasta` o `--format gff`.
+Las coordenadas exportadas empiezan en 1 y ambos extremos son inclusivos.
+El intervalo incluye la parada y la proteína no la incluye.
+
+**Ejemplo reproducible.** En la app, pulsa **Cargar ejemplo**, abre **ORFs**
+y selecciona `NM_000207.3`. Con la tabla 1, un mínimo de 30 aa e inicios
+solo ATG, el marco `+3` muestra un candidato de 110 aa entre las posiciones
+60 y 392. Es un intervalo de 333 nucleótidos: 330 codifican los 110
+aminoácidos y los 3 restantes forman el codón de parada.
+
+Para ver ese mismo resultado desde PowerShell:
+
+```powershell
+uv run dna-analyzer orfs data/examples.fasta --min-aa 30 --table 1 --format csv |
+    ConvertFrom-Csv |
+    Where-Object { $_.id -eq 'NM_000207.3' -and $_.frame -eq '+3' } |
+    Format-Table id, frame, start_1based, end_inclusive, length_aa
+```
+
+Verás también un candidato de 106 aa que empieza en 72 y termina en 392.
+Al desactivar **Incluir ORFs anidados** (o usar `--exclude-nested` en la CLI)
+queda el de 110 aa. Esa diferencia muestra el efecto del filtro de inicios.
+
+### Resumir resultados BLAST guardados
+
+`uv run dna-analyzer blast-report resultados.xml` convierte un informe
+BLAST XML clásico (BLAST+ `-outfmt 5`) a CSV. Para el formato tabular estándar
+(`-outfmt 6`), usa `uv run dna-analyzer blast-report resultados.tsv --tabular`.
+El comando elige el segmento con menor E-value por pareja de secuencias
+y usa el bit score para desempatar. La identidad corresponde a ese segmento
+alineado, no a la secuencia completa. Esta lectura es local.
+
+### Entrada FASTA
 
 Un archivo FASTA guarda una o varias secuencias. Cada una empieza por
 una línea de cabecera que comienza con `>`:
@@ -149,7 +194,7 @@ dna-analyzer --version
 ```
 
 ```text
-dna-analyzer 0.5.0
+dna-analyzer 0.7.0
 ```
 
 ## Uso
@@ -517,7 +562,11 @@ También puedes lanzarla con el archivo que usa Streamlit Cloud:
 streamlit run app/streamlit_app.py
 ```
 
-Las seis pestañas son **Resumen GC**, **GC por ventanas**, **GC skew**, **Tm de primers**, **Traducción** y **Aprende**. La Tm utiliza su propio oligo y sus concentraciones, independientemente de la muestra FASTA.
+Las pestañas incluyen composición, perfiles de GC, traducción, ORFs, Tm, guía y BLAST.
+Para habilitar BLAST, configura la variable de entorno `NCBI_EMAIL` con el correo de contacto del operador antes de iniciar Streamlit.
+En la pestaña BLAST puedes enviar una accesión pública o una secuencia pública no humana.
+La búsqueda devuelve un RID; pulsa **Consultar resultado** después de un minuto.
+Los resultados se reutilizan durante la sesión. [Guía del servicio NCBI](https://blast.ncbi.nlm.nih.gov/doc/blast-help/developerinfo.html).
 
 ### Publicarla gratis en Streamlit Community Cloud
 
@@ -641,9 +690,7 @@ en los seis marcos de la secuencia elegida.
 4. BLAST remoto contra NCBI.
 5. Línea de comandos pulida, README de publicación e instalación desde PyPI.
 
-Los ORFs, BLAST y PyPI siguen sin hacerse. La Tm no
-los sustituye: es un cálculo para oligos cortos, apoyado en el mismo
-lector de FASTA.
+La publicación en PyPI y el cambio de rama en Streamlit Cloud quedan pendientes.
 
 ## Qué he aprendido
 

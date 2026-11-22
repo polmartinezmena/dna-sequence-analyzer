@@ -7,12 +7,16 @@ Every number comes from the same functions as the command line.
 from __future__ import annotations
 
 import streamlit as st
+import plotly.graph_objects as go
 from html import escape
+import re
 from dataclasses import asdict
 from dna_sequence_analyzer.lab import quality, run_metadata, report, result_csv
 
 from dna_sequence_analyzer import __version__
 from dna_sequence_analyzer.translate import TABLES, transcribe, translate_frames
+from dna_sequence_analyzer.orfs import export_orfs, find_orfs
+from dna_sequence_analyzer.remote_blast import submit, retrieve
 from dna_sequence_analyzer.gc import GC_HIGH_PERCENT, GC_LOW_PERCENT
 from dna_sequence_analyzer.tm import OLIGO_GUIDANCE_LENGTH, MeltingConditions, melting_temperature
 from dna_sequence_analyzer.web_input import (
@@ -35,14 +39,16 @@ _AMBER = "#AB792E"
 _INDIGO = "#7467AA"
 _REPO = "https://github.com/polmartinezmena/dna-sequence-analyzer"
 _STYLE = """<style>
-.block-container {max-width: 88rem; padding-top: 3rem}
-[data-testid="stMetric"] {border: 1px solid var(--st-border-color,#ccd6df);
-border-radius: .45rem; padding: .8rem 1rem; height:100%}
+.block-container {max-width: 92rem; padding-top: clamp(3rem, 6vw, 5rem)}
+[data-testid="stMetricValue"] {font-variant-numeric: tabular-nums}
+[data-testid="stSidebar"] {border-inline-end: 1px solid var(--st-border-color)}
 [data-testid="stSidebar"] h2 {font-size:1.05rem}
-header.lab {border-bottom:2px solid #3278b8; padding-bottom:1.2rem; margin-bottom:.8rem}
-.lab small {font-weight:700;letter-spacing:.12em;color:#5288b6}
-.lab h1 {font-size:clamp(1.8rem,3vw,2.7rem);padding:.35rem 0}
-.lab p {margin:0} code.protein {overflow-wrap:anywhere}
+header.lab {border-bottom:1px solid var(--st-border-color); padding-bottom:1.5rem}
+.lab h1 {font-size:clamp(2rem, 5vw, 3.5rem); letter-spacing:-.035em; padding:0 0 .45rem}
+.lab p {margin:0; max-width:65ch}
+[role="tablist"] {gap: clamp(.35rem, 1.5vw, 1.4rem)}
+[role="tab"] {min-height:44px}
+code.protein {overflow-wrap:anywhere}
 </style>"""
 
 
@@ -53,9 +59,8 @@ def _example():
 def main() -> None:
     st.set_page_config(page_title="Analizador de ADN", layout="wide")
     st.html(_STYLE)
-    st.html(f'<header class="lab"><small>ADN / LAB &nbsp; · &nbsp; v{__version__}</small>'
-            '<h1>Analizador de secuencias de ADN</h1>'
-            '<p>Composición de bases, perfiles locales, traducción y termodinámica de oligos.</p></header>')
+    st.html('<header class="lab"><h1>Analizador de ADN</h1>'
+            '<p>Composición, traducción y marcos de lectura de secuencias FASTA.</p></header>')
     records, error = _sidebar_records()
     records = records or []
     stats = describe_records(records)
@@ -64,7 +69,7 @@ def main() -> None:
         with st.container(border=True):
             st.subheader("Carga tu primera muestra")
             st.write("Sube un archivo FASTA o pega una secuencia en el panel lateral. "
-                     "También puedes explorar las seis pestañas con la muestra de ejemplo.")
+                     "También puedes explorar las herramientas con la muestra de ejemplo.")
             st.button("Cargar ejemplo", on_click=_example, type="primary")
     if records or error:
         with st.expander("Control de calidad", expanded=True):
@@ -78,7 +83,7 @@ def main() -> None:
     params = {"Origen": st.session_state.source}
     results = {}
     tabs = st.tabs(
-        ["Resumen GC", "GC por ventanas", "GC skew", "Tm de primers", "Traducción", "Aprende"]
+        ["Composición", "GC por ventanas", "GC skew", "Traducción", "ORFs", "Tm de primers", "Guía", "BLAST"]
     )
     with tabs[0]:
         _tab_resumen(stats, results)
@@ -87,11 +92,15 @@ def main() -> None:
     with tabs[2]:
         _tab_skew(records, results, params)
     with tabs[3]:
-        _tab_tm(results, params)
-    with tabs[4]:
         _tab_traduccion(records, results, params)
+    with tabs[4]:
+        _tab_orfs(records)
     with tabs[5]:
+        _tab_tm(results, params)
+    with tabs[6]:
         _tab_aprende()
+    with tabs[7]:
+        _tab_blast(records, results)
     st.sidebar.header("3. Resultados")
     metadata = run_metadata(records, params, st.session_state.get("metadata"))
     st.session_state.metadata = metadata
@@ -107,6 +116,108 @@ def main() -> None:
                                f"{selected}-{metadata['ID']}.csv", "text/csv")
     st.divider()
     st.caption(f"Pol Martinez Mena · [GitHub]({_REPO}) · Versión {__version__}")
+
+
+def _tab_blast(records, results):
+    st.subheader("Buscar secuencias similares")
+    source = st.radio("Consulta BLAST", ["Accesión pública", "Secuencia de la muestra"], horizontal=True)
+    if source == "Accesión pública":
+        query = st.text_input("Accesión de nucleótidos", placeholder="NM_000207.3").strip()
+        if query and not re.fullmatch(r"[A-Za-z]{1,6}_?[0-9]+(?:\.[0-9]+)?", query):
+            st.info("Introduce un identificador de nucleótidos con su número de accesión.")
+            return
+        confirmed = True
+    else:
+        if not records:
+            st.info("Carga una muestra para seleccionar un registro.")
+            return
+        record, _ = _choose_record(records, "blast")
+        query = str(record.seq)
+        confirmed = st.checkbox("Confirmo que esta secuencia es pública, no es material genómico humano y autorizo su envío a NCBI.")
+    st.caption("BLASTn compara la consulta con core_nt en NCBI. Se solicitan hasta 20 coincidencias.")
+    if not query:
+        return
+    searches = st.session_state.setdefault("blast_searches", {})
+    try:
+        if query not in searches:
+            if not st.button("Enviar consulta a NCBI", disabled=not confirmed):
+                return
+            searches[query] = {"job": submit(query), "hits": None}
+        search = searches[query]
+        job = search["job"]
+        st.caption(f"Identificador de búsqueda · {job.rid}")
+        if search["hits"] is None:
+            st.info("Consulta el resultado pasado un minuto. NCBI puede tardar varios minutos.")
+            if st.button("Consultar resultado"):
+                search["hits"] = retrieve(job)
+        if search["hits"] is not None:
+            if search["hits"]:
+                rows = [asdict(hit) for hit in search["hits"]]
+                st.dataframe(rows, hide_index=True)
+                results["BLAST"] = rows
+                st.caption("La identidad corresponde al segmento con menor E-value de cada coincidencia.")
+            else:
+                st.info("NCBI completó la búsqueda sin coincidencias.")
+    except (OSError, ValueError) as exc:
+        st.error(str(exc))
+
+
+@st.fragment
+def _tab_orfs(records) -> None:
+    st.subheader("Marcos abiertos de lectura")
+    if not records:
+        st.info("Carga una muestra FASTA para buscar ORFs.")
+        return
+    record, _ = _choose_record(records, "orfs")
+    with st.form("orf-settings"):
+        table_col, minimum_col = st.columns(2)
+        table = table_col.selectbox("Tabla genética NCBI", TABLES)
+        minimum = minimum_col.number_input("Longitud mínima (aa)", min_value=1, value=30)
+        alternative = st.checkbox("Incluir inicios alternativos")
+        nested = st.checkbox("Incluir ORFs anidados", value=True)
+        submitted = st.form_submit_button("Buscar ORFs", type="primary")
+    if submitted:
+        try:
+            hits = find_orfs(str(record.seq), table=table, min_aa=minimum,
+                             alternative_starts=alternative, include_nested=nested)
+        except ValueError as exc:
+            st.error(str(exc))
+            return
+        st.session_state.orf_result = (record.id, str(record.seq), hits, table, minimum, alternative, nested)
+    stored = st.session_state.get("orf_result")
+    if stored is None or stored[:2] != (record.id, str(record.seq)):
+        return
+    _, _, hits, table, minimum, alternative, nested = stored
+    st.caption(f"Tabla {table} · Mínimo {minimum} aa · "
+               f"Inicios {'de la tabla' if alternative else 'ATG'} · "
+               f"Anidados {'incluidos' if nested else 'excluidos'}")
+    if not hits:
+        st.info("No hay ORFs completos para estos parámetros. Prueba una longitud mínima menor.")
+        return
+    st.markdown(f"**{len(hits):,} ORFs completos**")
+    figure = go.Figure()
+    for strand, color in (("+", _BLUE), ("-", _INDIGO)):
+        x, y = [], []
+        for hit in hits:
+            if hit.frame.startswith(strand):
+                x.extend((hit.start + 1, hit.end, None))
+                y.extend((hit.frame, hit.frame, None))
+        figure.add_scatter(x=x, y=y, mode="lines", name=f"Hebra {strand}",
+                           line=dict(color=color, width=7), hoverinfo="skip")
+    figure.update_layout(height=300, margin=dict(l=0, t=12, r=12, b=0),
+                         xaxis=dict(title="Posición en la secuencia (nt)", range=[0, len(record)]),
+                         yaxis=dict(title="Marco", type="category", categoryorder="array",
+                                    categoryarray=["-3", "-2", "-1", "+3", "+2", "+1"]))
+    st.plotly_chart(figure)
+    table_rows = [{"Marco": hit.frame, "Inicio": hit.start + 1, "Fin": hit.end,
+                   "Longitud (aa)": len(hit.protein), "Proteína": hit.protein} for hit in hits]
+    st.dataframe(table_rows, hide_index=True)
+    st.caption("Coordenadas 1-based inclusivas, con el codón de parada. "
+               "Los ORFs son candidatos a regiones codificantes.")
+    for column, kind, suffix in zip(st.columns(3), ("csv", "fasta", "gff"), ("csv", "faa", "gff3")):
+        column.download_button(f"Descargar {suffix.upper()}",
+                               export_orfs([(record.id, hit) for hit in hits], kind),
+                               file_name=f"orfs.{suffix}", mime="text/plain")
 
 
 def _tab_traduccion(records, results, params) -> None:
