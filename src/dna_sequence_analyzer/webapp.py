@@ -34,45 +34,49 @@ from dna_sequence_analyzer.windows import (
     skew_windows_for_records,
 )
 
-_BLUE = "#3278B8"
-_AMBER = "#AB792E"
-_INDIGO = "#7467AA"
+_BLUE = "#6654ce"
+_AMBER = "#aa641e"
+_INDIGO = "#a13776"
 _REPO = "https://github.com/polmartinezmena/dna-sequence-analyzer"
-_STYLE = """<style>
-.block-container {max-width: 85rem; padding-top: 3.6rem}
-[data-testid="stMetricValue"] {font-variant-numeric: tabular-nums}
-[data-testid="stSidebar"] {border-inline-end: 1px solid var(--st-border-color)}
-[data-testid="stSidebar"] h2 {font-size:1.05rem}
-.block-container {max-width:90rem;padding-inline:clamp(1.1rem,4vw,4rem)}
-[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]{padding-top:2rem}
-.instrument {font:650 1.22rem/1.3 'Segoe UI',sans-serif;letter-spacing:-.035em;
-padding:.8rem 0 1.35rem;border-bottom:2px solid #558ca4;margin-bottom:.65rem}
-.instrument small {display:block;font:400 .78rem/1.6 Consolas,monospace;letter-spacing:0}
-.sequence-view {background:#152e3c;color:#f4f8fa;border-radius:6px;padding:1.2rem 1.45rem;
-border-left:4px solid #64c4bb;min-width:0}
-.sequence-view h1 {color:inherit;font:600 clamp(1.5rem,2.3vw,2.1rem)/1.2 Consolas,monospace;
-letter-spacing:-.035em;padding:0;overflow-wrap:anywhere}
-.sequence-view p {margin:.25rem 0 .8rem;color:#dae5e9;overflow-wrap:anywhere}
-.sequence-view figure {display:flex;flex-wrap:wrap;gap:.5rem 1.35rem;
-margin:0;padding-top:.7rem;border-top:1px solid #405965}
+_STYLE = '''<style>
+.block-container {max-width: 78rem; padding: 3.6rem clamp(1rem,4vw,3rem) 2rem}
+.app-bar {display:flex;justify-content:space-between;align-items:center;gap:1rem;
+  background:#29213e;color:#f7f3ff;border-radius:10px;padding:.85rem 1rem}
+.app-bar strong {font-size:1.05rem;letter-spacing:-.025em}
+.app-bar a {font-size:.8rem;color:#e0d7fc}
+[data-testid="stVerticalBlockBorderWrapper"] {background:var(--st-background-color)}
+[data-testid="stFileUploaderDropzone"] {border:1px dashed var(--st-primary-color);min-height:5rem}
+.st-key-intake [data-testid="stExpander"] details {background:var(--st-background-color)}
+.st-key-intake summary {font-weight:600}
+.sequence-view {min-width:0}
+.sequence-view h2 {font:600 1.45rem/1.2 Consolas,monospace;padding:0;overflow-wrap:anywhere}
+.sequence-view p {margin:.45rem 0 .8rem;overflow-wrap:anywhere;font-size:.9rem}
+.sequence-view figure {display:flex;flex-wrap:wrap;gap:.7rem 1.35rem;margin:0;
+  padding:.8rem;border:1px solid var(--st-border-color);border-radius:7px;
+  background:var(--st-secondary-background-color)}
 .seq-group {display:grid;gap:.18rem}
-.seq-group small {color:#bdcdd5;font: .7rem/1.3 Consolas,monospace}
-.seq-group b {font:600 1rem/1.3 Consolas,monospace;letter-spacing:.06em}
-.seq-group .base-A{color:#94ded2}.seq-group .base-C{color:#adcffa}
-.seq-group .base-G{color:#ffd392}.seq-group .base-T,.seq-group .base-U{color:#efb9d7}
-.st-key-composition_metrics {border-block:1px solid var(--st-border-color);padding-block:.65rem}
-[data-testid="stMetricValue"] {font-family:Consolas,monospace;font-size:1.65rem}
-@media(max-width:760px){
-  .sequence-view {padding:1rem}.sequence-view figure{gap:.55rem .9rem}
-  .block-container{padding-top:4.25rem}
-  .st-key-composition_metrics [data-testid="stHorizontalBlock"]{
-    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem 1rem}
-  .st-key-composition_metrics [data-testid="stColumn"]{width:100%;min-width:0}
-}
-[role="tablist"] {gap: clamp(.35rem, 1.5vw, 1.4rem)}
-[role="tab"] {min-height:44px}
+.seq-group small {font: .73rem/1.3 Consolas,monospace}
+.seq-group b {font:600 1rem/1.3 Consolas,monospace;letter-spacing:.09em}
+.seq-group .base-A {text-decoration:underline;text-decoration-color:#8978ed;text-underline-offset:3px}
+.seq-group .base-C {text-decoration:underline;text-decoration-color:#1b9f93;text-underline-offset:3px}
+.seq-group .base-G {text-decoration:underline;text-decoration-color:#c88737;text-underline-offset:3px}
+.seq-group .base-T,.seq-group .base-U {text-decoration:underline;text-decoration-color:#d279aa;text-underline-offset:3px}
+.st-key-composition_metrics [data-testid="stMetric"] {
+  padding:.75rem;border-radius:9px;background:rgba(126,101,199,.10)}
+[data-testid="stMetricValue"] {font-variant-numeric:tabular-nums;font-size:1.6rem}
+[role="tablist"] {padding:.35rem;gap:.3rem;border:1px solid var(--st-border-color);
+  border-radius:9px;background:var(--st-secondary-background-color)}
+[role="tab"] {padding-inline:.85rem;min-height:42px;border-radius:6px;font-weight:600}
+[role="tab"][aria-selected="true"] {background:var(--st-background-color);color:var(--st-primary-color)}
+[data-testid="stTabs"] [data-baseweb="tab-highlight"] {display:none}
 code.protein {overflow-wrap:anywhere}
-</style>"""
+@media(max-width:760px) {
+  .block-container {padding-top:3.75rem}
+  .st-key-composition_metrics [data-testid="stHorizontalBlock"] {
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}
+  .st-key-composition_metrics [data-testid="stColumn"] {width:100%;min-width:0}
+}
+</style>'''
 
 
 _COLLECTION = "Colección INS y GFP"
@@ -93,69 +97,75 @@ def _sample_header(record):
     description = record.description.removeprefix(record.id).strip()
     detail = " · ".join(filter(None, [escape(description), f"{len(record.seq)} bases"]))
     track = f'<figure aria-label="Secuencia y posiciones">{"".join(groups)}</figure>' if groups else ""
-    st.html(f'<section class="sequence-view"><h1>{escape(record.id)}</h1><p>{detail}</p>{track}</section>')
+    st.html(f'<section class="sequence-view"><h2>{escape(record.id)}</h2><p>{detail}</p>{track}</section>')
 
 
 def main() -> None:
     st.set_page_config(page_title="DNA Sequence Analyzer", layout="wide")
     st.html(_STYLE)
-    st.sidebar.html(f'<div class="instrument">DNA Sequence Analyzer<small>v{__version__}</small></div>')
-    records, error = _sidebar_records()
+    st.html(
+        f'<header class="app-bar"><strong>DNA Sequence Analyzer</strong>'
+        f'<a href="{_REPO}">GitHub · v{__version__}</a></header>'
+    )
+    with st.container(key="intake"):
+        with st.expander("Entrada de datos", expanded=True):
+            records, error = _read_records()
     records = records or []
-    if records:
-        labels = record_labels(records)
-        selected = st.sidebar.selectbox("Registro en el visor", labels)
-        _sample_header(records[labels.index(selected)])
-    else:
-        st.title("Importar secuencias")
     stats = describe_records(records)
-    checks = quality(records, stats, error) if records or error else [("Aviso", "Sin muestra cargada. Solo se evalúa el oligo.")]
-    if not records and not error:
-        st.info("Selecciona un archivo FASTA en el panel de entrada para iniciar el análisis.")
+    checks = quality(records, stats, error) if records or error else [
+        ("Aviso", "Sin muestra cargada.")
+    ]
+    params = {"Origen": st.session_state.source}
+    results = {}
     if records or error:
         issues = sum(level != "OK" for level, _ in checks)
-        with st.sidebar.expander("Control de calidad · " + (f"{issues} avisos o errores" if issues else "Sin incidencias"),
-                         expanded=bool(issues)):
+        status = f"{issues} avisos o errores" if issues else "Sin incidencias"
+        with st.expander(f"Control de calidad · {status}", expanded=bool(issues)):
             colors = {"OK": "green", "Aviso": "orange", "Error": "red"}
             for level, message in checks:
                 st.badge(level, color=colors[level])
                 st.caption(message)
-    params = {"Origen": st.session_state.source}
-    results = {}
-    tabs = st.tabs(
-        ["Composición", "GC por ventanas", "GC skew", "Traducción", "ORFs", "Tm de primers", "BLAST", "Guía"]
-    )
-    with tabs[0]:
-        _tab_resumen(stats, results)
-    with tabs[1]:
-        _tab_ventanas(records, results, params)
-    with tabs[2]:
-        _tab_skew(records, results, params)
-    with tabs[3]:
-        _tab_traduccion(records, results, params)
-    with tabs[4]:
-        _tab_orfs(records)
-    with tabs[5]:
+    if records:
+        overview, viewer, windows, skew, translation, orfs, tm, blast, guide = st.tabs(
+            ["Resumen", "Visor", "GC por ventanas", "Sesgo GC", "Traducción", "ORFs", "Tm", "BLAST", "Guía"]
+        )
+        with overview:
+            _tab_resumen(stats, results)
+        with viewer:
+            labels = record_labels(records)
+            selected = st.selectbox("Registro en el visor", labels)
+            _sample_header(records[labels.index(selected)])
+        with windows:
+            _tab_ventanas(records, results, params)
+        with skew:
+            _tab_skew(records, results, params)
+        with translation:
+            _tab_traduccion(records, results, params)
+        with orfs:
+            _tab_orfs(records)
+    else:
+        with st.expander("Herramientas disponibles sin archivo"):
+            tm, blast, guide = st.tabs(["Tm", "BLAST", "Guía"])
+    with tm:
         _tab_tm(results, params)
-    with tabs[6]:
+    with blast:
         _tab_blast(records, results)
-    with tabs[7]:
+    with guide:
         _tab_aprende()
-    st.sidebar.header("Exportación")
     metadata = run_metadata(records, params, st.session_state.get("metadata"))
     st.session_state.metadata = metadata
-    with st.expander("Metadatos del análisis"):
-        st.json(metadata)
-    st.sidebar.download_button("Descargar informe HTML", report(metadata, checks, results),
+    with st.expander("Exportación y metadatos"):
+        export, details = st.columns(2)
+        with export:
+            st.download_button("Descargar informe HTML", report(metadata, checks, results),
                                f"analisis-{metadata['ID']}.html", "text/html")
-    available = [title for title, rows in results.items() if rows]
-    if available:
-        with st.sidebar.expander("Exportar tabla CSV"):
-            selected = st.selectbox("Tabla de resultados", available)
-            st.download_button("Descargar tabla", result_csv(results[selected]),
-                               f"{selected}-{metadata['ID']}.csv", "text/csv")
-    st.divider()
-    st.caption(f"Pol Martinez Mena · [GitHub]({_REPO}) · Versión {__version__}")
+            available = [title for title, rows in results.items() if rows]
+            if available:
+                selected = st.selectbox("Tabla de resultados", available)
+                st.download_button("Descargar tabla CSV", result_csv(results[selected]),
+                                   f"{selected}-{metadata['ID']}.csv", "text/csv")
+        with details:
+            st.json(metadata, expanded=False)
 
 
 def _tab_blast(records, results):
@@ -292,34 +302,29 @@ def _tab_traduccion(records, results, params) -> None:
             st.caption("Sin codones completos.")
 
 
-def _sidebar_records():
-    """Read the sidebar and return ``(records, error_message)``."""
-    st.sidebar.header("Entrada de datos")
-    source = st.sidebar.selectbox(
+def _read_records():
+    """Read the selected input and return records or a parsing error."""
+    source_column, input_column = st.columns([1, 2])
+    source = source_column.selectbox(
         "Origen",
         ["Subir un FASTA", "Pegar texto", _COLLECTION],
         key="source",
     )
-    try:
-        if source == _COLLECTION:
-            path = bundled_example_fasta()
-            st.sidebar.caption("Transcritos públicos de insulina humana y GFP.")
-            return parse_sequence_text(path.read_text(encoding="utf-8")), None
-        if source == "Pegar texto":
-            pasted = st.sidebar.text_area(
-                "FASTA o secuencia",
-                height=220,
-                placeholder=">mi_gen\nATGCATGC\n\no solo ATGCATGC",
-            )
-            if not pasted.strip():
-                return None, "Pega un FASTA o una secuencia de bases en el panel de la izquierda."
-            return parse_sequence_text(pasted), None
-        uploaded = st.sidebar.file_uploader("Archivo FASTA", type=["fasta", "fa", "fna", "txt"])
-        if uploaded is None:
-            return None, None
-        return parse_sequence_text(text_from_upload(uploaded.getvalue())), None
-    except (ValueError, FileNotFoundError, OSError) as exc:
-        return None, str(exc)
+    with input_column:
+        try:
+            if source == _COLLECTION:
+                st.caption("Transcritos públicos de insulina humana y GFP.")
+                path = bundled_example_fasta()
+                return parse_sequence_text(path.read_text(encoding="utf-8")), None
+            if source == "Pegar texto":
+                pasted = st.text_area("FASTA o secuencia", height=130)
+                return (parse_sequence_text(pasted), None) if pasted.strip() else (None, None)
+            uploaded = st.file_uploader("Archivo FASTA", type=["fasta", "fa", "fna", "txt"])
+            if uploaded is None:
+                return None, None
+            return parse_sequence_text(text_from_upload(uploaded.getvalue())), None
+        except (ValueError, FileNotFoundError, OSError) as exc:
+            return None, str(exc)
 
 
 def _tab_resumen(stats, results) -> None:
@@ -338,10 +343,10 @@ def _tab_resumen(stats, results) -> None:
     mean_gc = sum(defined) / len(defined) if defined else None
     with st.container(key="composition_metrics"):
         cards = st.columns(4)
-    cards[0].metric("Secuencias", len(stats))
-    cards[1].metric("Bases en total", f"{sum(item.length for item in stats):,}".replace(",", "."))
-    cards[2].metric("GC medio", "—" if mean_gc is None else f"{mean_gc:.1f} %")
-    cards[3].metric("Con aviso de GC", flagged)
+    cards[0].metric("Secuencias", len(stats), border=True)
+    cards[1].metric("Bases en total", f"{sum(item.length for item in stats):,}".replace(",", "."), border=True)
+    cards[2].metric("GC medio", "—" if mean_gc is None else f"{mean_gc:.1f} %", border=True)
+    cards[3].metric("Con aviso de GC", flagged, border=True)
     table = [
         {
             "id": item.id,
@@ -354,40 +359,45 @@ def _tab_resumen(stats, results) -> None:
         for item in stats
     ]
     results["Resumen GC"] = table
-    st.dataframe(table, row_height=36, width="stretch", hide_index=True, column_config={
-        "id": "Identificador", "longitud": "Longitud (bases)", "ambiguas": "Bases ambiguas",
-        "tipo": "Ácido nucleico", "aviso": "Aviso",
-        "GC %": st.column_config.ProgressColumn("GC (%)", min_value=0, max_value=100, format="%.2f"),
-    })
-    with st.expander("Cálculo y umbrales de GC"):
-        st.write(method)
-    st.download_button(
-        "Descargar CSV",
-        data=stats_csv(stats),
-        file_name="gc_resumen.csv",
-        mime="text/csv",
-    )
-    chart_rows = [row for row in table if row["GC %"] is not None]
-    if not chart_rows:
-        st.info("Ninguna secuencia tiene un GC calculable, así que no hay barras.")
-        return
-    import plotly.express as px
+    registry, distribution = st.columns([3, 2], gap="medium")
+    with registry, st.container(border=True):
+        st.subheader("Registros")
+        st.dataframe(table, row_height=36, width="stretch", hide_index=True, column_config={
+            "id": "Identificador", "longitud": "Longitud (bases)", "ambiguas": "Bases ambiguas",
+            "tipo": "Ácido nucleico", "aviso": "Aviso",
+            "GC %": st.column_config.ProgressColumn("GC (%)", min_value=0, max_value=100, format="%.2f"),
+        })
+        with st.expander("Cálculo y umbrales de GC"):
+            st.write(method)
+        st.download_button(
+            "Descargar CSV",
+            data=stats_csv(stats),
+            file_name="gc_resumen.csv",
+            mime="text/csv",
+        )
+    with distribution, st.container(border=True):
+        st.subheader("Distribución GC")
+        chart_rows = [row for row in table if row["GC %"] is not None]
+        if not chart_rows:
+            st.info("Ninguna secuencia tiene un GC calculable, así que no hay barras.")
+            return
+        import plotly.express as px
 
-    figure = px.bar(
-        chart_rows,
-        x="id",
-        y="GC %",
-        color="aviso",
-        color_discrete_map={"": _BLUE, "low-gc": _AMBER, "high-gc": _INDIGO},
-        labels={"id": "Secuencia", "aviso": "Aviso"},
-    )
-    for threshold in (GC_LOW_PERCENT, GC_HIGH_PERCENT):
-        figure.add_hline(y=threshold, line_dash="dot", line_color="#758692",
-                         annotation_text=f"Umbral {threshold:g} %", annotation_position="top left")
-    figure.update_layout(yaxis_title="GC (%)", yaxis_range=[0, 100], xaxis_title="Secuencia",
-                         showlegend=any(row["aviso"] for row in chart_rows),
-                         bargap=.65, height=300, margin=dict(t=18, b=32))
-    st.plotly_chart(figure, width="stretch")
+        figure = px.bar(
+            chart_rows,
+            x="id",
+            y="GC %",
+            color="aviso",
+            color_discrete_map={"": _BLUE, "low-gc": _AMBER, "high-gc": _INDIGO},
+            labels={"id": "Secuencia", "aviso": "Aviso"},
+        )
+        for threshold in (GC_LOW_PERCENT, GC_HIGH_PERCENT):
+            figure.add_hline(y=threshold, line_dash="dot", line_color="#758692",
+                             annotation_text=f"Umbral {threshold:g} %", annotation_position="top left")
+        figure.update_layout(yaxis_title="GC (%)", yaxis_range=[0, 100], xaxis_title="Secuencia",
+                             showlegend=any(row["aviso"] for row in chart_rows),
+                             bargap=.65, height=260, margin=dict(t=18, b=32))
+        st.plotly_chart(figure, width="stretch")
 
 
 def _tab_ventanas(records, results, params) -> None:
@@ -397,7 +407,7 @@ def _tab_ventanas(records, results, params) -> None:
         "La ventana es el trozo que se mide. El paso es cuánto avanza la siguiente ventana."
     )
     if not records:
-        st.info("Carga una secuencia en el panel de la izquierda.")
+        st.info("Carga una secuencia en Entrada de datos.")
         return
     with st.expander("Secuencia, ventana y paso"):
         chosen, subset = _choose_record(records, "ventana")
@@ -455,7 +465,7 @@ def _tab_skew(records, results, params) -> None:
         "Son candidatos, no una demostración."
     )
     if not records:
-        st.info("Carga una secuencia en el panel de la izquierda.")
+        st.info("Carga una secuencia en Entrada de datos.")
         return
     with st.expander("Parámetros del sesgo GC"):
         chosen, subset = _choose_record(records, "sesgo")

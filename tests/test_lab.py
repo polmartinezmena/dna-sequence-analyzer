@@ -32,10 +32,10 @@ def test_app_example():
     app.run(timeout=30)
     assert not app.exception
     assert app.selectbox(key="source").value == "Subir un FASTA"
-    assert any(title.value == "Importar secuencias" for title in app.title)
+    assert "Visor" not in [tab.label for tab in app.tabs]
     app.selectbox(key="source").set_value("Colección INS y GFP").run(timeout=30)
     next(field for field in app.selectbox if field.label == "Registro en el visor").select("L29345.1").run(timeout=30)
-    assert any("<h1>L29345.1</h1>" in item.proto.body for item in app.get("html"))
+    assert any("<h2>L29345.1</h2>" in item.proto.body for item in app.get("html"))
     assert not app.exception
     assert "ORFs" in [tab.label for tab in app.tabs]
     next(field for field in app.number_input if field.label == "Longitud mínima (aa)").set_value(1)
