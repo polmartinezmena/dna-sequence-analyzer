@@ -21,7 +21,6 @@ const pages = {
   translation: ['Traducción', 'M3 7h8m-4-4v4m3 0c0 4-3 7-6 9m1-7c1 2 3 4 6 5m1 7 4-10 4 10m-7-3h6'],
   orfs: ['ORFs', 'M3 6h18M3 12h18M3 18h18M7 4v4m9 2v4m-6 2v4'],
   blast: ['BLAST', 'M16 16l5 5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z'],
-  learn: ['Aprende', 'M12 5v15M3 4c4-1 7 0 9 2 2-2 5-3 9-2v14c-4-1-7 0-9 2-2-2-5-3-9-2z'],
 };
 const svgNS = 'http://www.w3.org/2000/svg';
 function svg(tag, attributes) {
@@ -263,30 +262,6 @@ function summary(record, card) {
   }
 }
 
-function meltForm(record, card) {
-  const selected = record.sequence.slice(state.start - 1, state.end);
-  const fields = [['na_mM', 'Na⁺ (mM)', 50], ['k_mM', 'K⁺ (mM)', 0], ['tris_mM', 'Tris (mM)', 0],
-    ['mg_mM', 'Mg²⁺ (mM)', 0], ['dntps_mM', 'dNTPs (mM)', 0], ['dnac1_nM', 'Hebra 1 (nM)', 25],
-    ['dnac2_nM', 'Hebra 2 (nM)', 25], ['saltcorr', 'Corrección salina (0–7)', 5]];
-  const set = h('div', fields.map(([name, title, value]) => h('label', [title,
-    h('input', undefined, {name, value, type: 'number', min: 0, step: name === 'saltcorr' ? 1 : 'any', required: ''})])), {class: 'fields'});
-  const form = h('form', [set, h('label', [h('input', undefined, {type: 'checkbox', name: 'selfcomp'}), ' Autocomplementaria']),
-    h('button', 'Calcular Tm', {type: 'submit'})]);
-  const result = h('p', '', {role: 'status'});
-  form.addEventListener('submit', event => {
-    event.preventDefault();
-    const conditions = Object.fromEntries(fields.map(([name]) => [name, form.elements[name].valueAsNumber]));
-    conditions.selfcomp = form.elements.selfcomp.checked;
-    try {
-      const value = melt(selected, conditions);
-      result.textContent = value === null ? 'Se requieren al menos dos bases A, C, G, T o U.' : fmt(value) + ' °C';
-    } catch (error) { result.textContent = error.message; }
-  });
-  card.append(h('h3', 'Temperatura de fusión (Tm)'), h('p', (selected.length > 60 ?
-    'La región supera 60 pb. El modelo es para oligos cortos. ' : '') + 'El cálculo usa la región seleccionada.'),
-  form, result);
-}
-
 function blast(record, card) {
   card.append(h('p', 'NCBI abre el formulario con tu consulta. Revisa los parámetros y pulsa BLAST allí. El navegador envía la secuencia a NCBI al abrir el enlace.'));
   const sources = new Map([['record', {sequence: record.sequence, program: 'blastn'}]]);
@@ -372,12 +347,7 @@ function renderView() {
       });
       card.append(tableSelect(), form, orfTable(getOrfs(record)));
     }
-    if (state.page === 'learn') {
-      card.append(h('h3', 'Composición y ventanas'), h('p', 'GC mide la fracción de bases definidas que son G o C. Las ventanas muestran cambios locales. CpG compara los pares CG observados con los esperados y el sesgo GC mide el equilibrio entre G y C.'),
-        h('h3', 'Marcos de lectura'), h('p', 'Cada hebra se lee desde tres posiciones posibles. Un ORF comienza en un codón de inicio y termina en una parada, cuando está presente.'),
-      );
-      meltForm(record, card);
-    }
+
   } catch (error) {
     card.append(h('p', error.message, {role: 'status'}));
   }
