@@ -52,3 +52,50 @@ def test_import_pasted_fasta_with_preamble(app):
     assert app.session_state["nombre_archivo"] == "pegado.fasta"
     assert [r.id for r in app.session_state["records"]] == ["uno", "dos"]
     assert any("se ignoraron 1" in element.proto.body for element in app.get("html"))
+
+
+def html_elements(app):
+    return [element.proto.body for element in app.get("html")]
+
+
+def apply_region(app, start, end):
+    next(field for field in app.number_input if field.label == "Inicio").set_value(start)
+    next(field for field in app.number_input if field.label == "Fin").set_value(end)
+    next(button for button in app.button if button.label == "Aplicar").click().run()
+    assert not app.exception
+
+
+def test_visor_region_and_validation(app):
+    apply_region(app, 5, 40)
+    html = next(body for body in html_elements(app) if 'class="base-tiles"' in body)
+    assert html.split('data-position="', 1)[1].startswith('5"')
+    assert 'data-position="40"' in html and 'data-position="41"' not in html
+    apply_region(app, 5, 9999)
+    assert any("longitud" in error.value for error in app.error)
+    assert app.session_state["region"][0] == (5, 40)
+    app.button(key="registro-1").click().run()
+    apply_region(app, 1, 503)
+    assert any("500 pb" in error.value for error in app.error)
+
+
+def test_visor_switch_record_preserves_each_region(app):
+    apply_region(app, 5, 40)
+    app.button(key="registro-1").click().run()
+    assert not app.exception
+    assert app.session_state["registro_activo"] == 1
+    assert any('class="sample-filename">examples.fasta' in body for body in html_elements(app))
+    assert any("L29345.1" in body and "Registro seleccionado" in body for body in html_elements(app))
+    app.button(key="registro-0").click().run()
+    assert next(field for field in app.number_input if field.label == "Inicio").value == 5
+
+
+def test_table_selection_changes_active_record(app):
+    app.session_state["tabla-registros"] = {"selection": {"rows": [1], "columns": [], "cells": []}}
+    app.run()
+    assert not app.exception
+    assert app.session_state["registro_activo"] == 1
+    assert any("L29345.1" in body and "Registro seleccionado" in body for body in html_elements(app))
+    app.button(key="registro-0").click().run()
+    assert app.session_state["registro_activo"] == 0
+    app.run()
+    assert app.session_state["registro_activo"] == 0

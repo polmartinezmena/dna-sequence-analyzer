@@ -58,3 +58,48 @@ def render_sequence_html(sequence, start, end, frames=None, table=1,
                         f'{"".join(cells)}</div>')
         blocks.append(f'<div class="sequence-scroll">{"".join(rows)}</div>')
     return "".join(blocks)
+
+
+def render_base_tiles_html(sequence, start, end, record_id, rna=False):
+    """Render aligned ruler marks and base tiles for an inclusive interval."""
+    if not 1 <= start <= end <= len(sequence):
+        raise ValueError("La región debe estar dentro de la secuencia.")
+    fragment = sequence[start - 1:end].upper()
+    if rna:
+        fragment = fragment.replace("T", "U")
+    cells = []
+    for position, base in enumerate(fragment, start):
+        tick = "tile-tick mark" if position == start or position % 10 == 0 else "tile-tick"
+        color = BASE_COLORS.get(base, BASE_COLORS["other"])
+        tone = " tile-ambiguous" if base not in BASE_COLORS else ""
+        char = escape(base)
+        cells.append(
+            f'<div class="tile-cell"><span class="{tick}" data-position="{position}">'
+            f'{format_es(position)}</span>'
+            f'<span class="tile-base{tone}" data-base="{char}" data-position="{position}" '
+            f'style="--base:{color}">{char}</span></div>'
+        )
+    return (
+        '<div class="base-tiles"><p class="tile-ruler-label">Posición (pb)</p>'
+        f'<p class="tile-record">{escape(record_id)}</p>'
+        f'<div class="tile-grid">{"".join(cells)}</div></div>'
+    )
+
+
+def render_orf_track_html(hits, start, end):
+    """Render the visible portion of each overlapping ORF on a strand-labelled track."""
+    length = end - start + 1
+    tracks = []
+    for hit in hits:
+        left = (max(hit.start, start) - start) / length * 100
+        width = (min(hit.end, end) - max(hit.start, start) + 1) / length * 100
+        if width <= 0:
+            continue
+        frame = escape(hit.frame.replace("-", "−"))
+        label = f"Marco {frame}, {format_es(hit.start)}–{format_es(hit.end)} pb"
+        tracks.append(
+            f'<div class="orf-track"><span>{frame}</span><div class="orf-track-rail">'
+            f'<span aria-label="{label}" title="{label}" role="img" class="orf-track-bar" '
+            f'style="left:{left:.6f}%;width:{width:.6f}%"></span></div></div>'
+        )
+    return f'<div class="orf-tracks">{"".join(tracks)}</div>'

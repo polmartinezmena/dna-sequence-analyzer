@@ -1,6 +1,7 @@
 """Shared layout, sample import and downloads."""
 
 import json
+from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
 
@@ -33,6 +34,7 @@ def load_sample(text, name, source):
         raise ValueError("El archivo no contiene registros FASTA.")
     st.session_state.update(
         records=records, nombre_archivo=name, source=source, fasta_comments=comments,
+        sample_date=datetime.now(timezone.utc).strftime("%d/%m/%Y"),
         registro_activo=0, region={}, table_selection=tuple(
             st.session_state.get("tabla-registros", {}).get("selection", {}).get("rows", ())
         ),
@@ -88,8 +90,10 @@ def sidebar(records, active, view):
                 st.session_state.import_mode = "Subir archivo"
             if add.button("", key="pegar-muestra", icon=":material/add:", help="Pegar texto"):
                 st.session_state.import_mode = "Pegar texto"
-            st.markdown(f":material/description: **{escape(st.session_state.nombre_archivo)}** "
-                        f"({format_es(len(records))})")
+            st.html(
+                '<p class="sample-tree"><span class="file-icon" aria-hidden="true">description</span>'
+                f'<span><strong>{escape(st.session_state.nombre_archivo)}</strong> ({format_es(len(records))})</span></p>'
+            )
             for index, record in enumerate(records):
                 label = record.id.replace("`", "′")
                 st.button(f"`{label}`", key=f"registro-{index}", width="stretch",
@@ -119,10 +123,10 @@ def topbar(view):
             f'<span class="topbar-separator">|</span><span>{escape(title)}</span></div>')
 
 
-def sample_header(stats, metadata):
+def sample_header(stats):
     name = st.session_state.nombre_archivo
     initials = (Path(name).stem[:2] or "FA").upper()
-    year, month, day = metadata["Fecha (UTC)"][:10].split("-")
+    date = st.session_state.sample_date
     with st.container(border=True, key="cabecera-muestra"):
         identity, count, bases, gc, actions = st.columns(
             [2.8, 1, 1.15, 1, 2.45], gap="medium", vertical_alignment="center"
@@ -130,7 +134,7 @@ def sample_header(stats, metadata):
         identity.html(
             '<div class="sample-identity">'
             f'<span aria-hidden="true" class="sample-avatar">{escape(initials)}</span>'
-            f'<div><p class="sample-date">{day}/{month}/{year} UTC</p>'
+            f'<div><p class="sample-date">{date} UTC</p>'
             f'<p class="sample-filename">{escape(name)}</p></div></div>'
         )
         for column, label, value in (

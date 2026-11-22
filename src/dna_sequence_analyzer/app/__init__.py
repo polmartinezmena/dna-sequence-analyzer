@@ -29,6 +29,8 @@ def main():
                 layout.import_dialog("Subir archivo")
             return
     records = state.records
+    if view == "Visor":
+        visor.follow_table_selection(state, len(records))
     active = state.registro_activo
     record = records[active]
     stats = describe_records(records)
@@ -37,7 +39,7 @@ def main():
     layout.topbar(view)
     params = {"Origen": state.source, "Archivo": state.nombre_archivo, "Registro activo": record.id, "Vista": view}
     previous = state.get("metadata")
-    popover = layout.sample_header(stats, previous or run_metadata(records, params))
+    popover = layout.sample_header(stats)
 
     st.title(layout.NAVIGATION[view][0])
     results, exports = {}, {}
@@ -48,7 +50,12 @@ def main():
             if view != "Visor":
                 settings.html('<h2 class="section-label">Parámetros</h2>')
         with body:
-            VIEWS[view].render(record, stats[active], stats, checks, results, params, settings, exports)
+            if view not in ("Resumen", "Visor"):
+                body = st.container(border=True, key="tarjeta-contenido")
+            with body:
+                VIEWS[view].render(record, stats[active], stats, checks, results, params, settings, exports)
+    if view == "Visor":
+        visor.records_table(stats, results)
     metadata = run_metadata(records, params, previous)
     state.metadata = metadata
     layout.downloads(popover, metadata, checks, results, exports)

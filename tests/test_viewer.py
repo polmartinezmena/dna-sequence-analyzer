@@ -22,3 +22,27 @@ def test_markup_is_escaped_and_rna_uses_uracil():
     html = render_sequence_html("AT<x", 1, 4, frames=[], show_complement=True, rna=True)
     assert "&lt;" in html and "<x" not in html
     assert ">U</span>" in html and ">T</span>" not in html
+
+
+def test_tile_ruler_matches_bases():
+    import re
+
+    from dna_sequence_analyzer.ui_theme import BASE_COLORS
+    from dna_sequence_analyzer.viewer import render_base_tiles_html
+
+    sequence = "ATGC" * 8
+    html = render_base_tiles_html(sequence, 5, 21, "demo")
+    assert re.findall(r'class="tile-tick mark" data-position="(\d+)"', html) == ["5", "10", "20"]
+    cells = re.findall(r'data-base="(.)" data-position="(\d+)" style="--base:(#[A-Fa-f0-9]+)"', html)
+    assert cells == [(base, str(i), BASE_COLORS[base]) for i, base in enumerate(sequence[4:21], 5)]
+
+
+def test_tile_html_escapes_record_and_converts_rna():
+    from dna_sequence_analyzer.ui_theme import BASE_COLORS
+    from dna_sequence_analyzer.viewer import render_base_tiles_html
+
+    html = render_base_tiles_html("AT<", 1, 3, '<script title="x">', rna=True)
+    assert "<script" not in html
+    assert "&lt;script title=&quot;x&quot;&gt;" in html
+    assert 'data-base="U" data-position="2"' in html
+    assert f'data-base="&lt;" data-position="3" style="--base:{BASE_COLORS["other"]}"' in html

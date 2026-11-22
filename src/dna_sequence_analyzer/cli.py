@@ -421,7 +421,7 @@ def streamlit_entrypoint() -> Path:
 
 def web_launch_command(port: int = 8501) -> list[str]:
     """Command list used by ``dna-analyzer web``. Exposed for tests."""
-    from dna_sequence_analyzer.ui_theme import ACCENT
+    from dna_sequence_analyzer.ui_theme import ACCENT, APP_BG, BORDER, CARD, TEXT
 
     return [
         sys.executable,
@@ -431,6 +431,10 @@ def web_launch_command(port: int = 8501) -> list[str]:
         str(streamlit_entrypoint()),
         "--theme.base", "light",
         "--theme.primaryColor", ACCENT,
+        "--theme.backgroundColor", APP_BG,
+        "--theme.secondaryBackgroundColor", CARD,
+        "--theme.textColor", TEXT,
+        "--theme.borderColor", BORDER,
         "--server.port",
         str(port),
     ]

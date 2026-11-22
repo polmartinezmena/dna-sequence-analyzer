@@ -1,4 +1,4 @@
-from dna_sequence_analyzer.ui_theme import BASE_COLORS, format_es, stylesheet
+from dna_sequence_analyzer.ui_theme import APP_BG, BASE_COLORS, DARK_PANEL, format_es, stylesheet
 from dna_sequence_analyzer.plots import lab_template
 
 
@@ -12,7 +12,7 @@ def test_spanish_numbers():
 def test_theme_pairs():
     css = stylesheet()
     assert BASE_COLORS["U"] == BASE_COLORS["T"]
-    assert "#FFFFFF" in css and "#0F1318" in css
+    assert APP_BG in css and DARK_PANEL in css and "color-scheme:light" in css
 
 
 def test_plotly_template_uses_both_palettes():
@@ -21,7 +21,7 @@ def test_plotly_template_uses_both_palettes():
     light = io.templates[lab_template("light")].layout
     dark = io.templates[lab_template("dark")].layout
     assert light.font.color != dark.font.color
-    assert light.height == dark.height == 320
+    assert (light.height, dark.height) == (320, 260)
     assert light.separators == dark.separators == ",."
 
 
