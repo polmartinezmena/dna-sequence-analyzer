@@ -34,8 +34,12 @@ def test_app_example():
     assert app.selectbox(key="source").value == "Subir un FASTA"
     assert "Visor" not in [tab.label for tab in app.tabs]
     app.selectbox(key="source").set_value("Colección INS y GFP").run(timeout=30)
-    next(field for field in app.selectbox if field.label == "Registro en el visor").select("L29345.1").run(timeout=30)
+    app.radio(key="viewer_record").set_value("L29345.1").run(timeout=30)
     assert any("<h2>L29345.1</h2>" in item.proto.body for item in app.get("html"))
+    next(field for field in app.number_input if field.label == "Desde").set_value(11)
+    next(field for field in app.number_input if field.label == "Hasta").set_value(40)
+    next(button for button in app.button if button.label == "Aplicar").click().run(timeout=30)
+    assert any("Bases 11–40" in item.proto.body for item in app.get("html"))
     assert not app.exception
     assert "ORFs" in [tab.label for tab in app.tabs]
     next(field for field in app.number_input if field.label == "Longitud mínima (aa)").set_value(1)

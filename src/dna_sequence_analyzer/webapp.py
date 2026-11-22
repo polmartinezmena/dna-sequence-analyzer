@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import streamlit as st
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from html import escape
 import re
 from dataclasses import asdict
@@ -39,28 +40,25 @@ _AMBER = "#aa641e"
 _INDIGO = "#a13776"
 _REPO = "https://github.com/polmartinezmena/dna-sequence-analyzer"
 _STYLE = '''<style>
-.block-container {max-width: 78rem; padding: 3.6rem clamp(1rem,4vw,3rem) 2rem}
+.block-container {max-width:100rem;padding:3.3rem clamp(1rem,2.3vw,2rem) 2rem}
 .app-bar {display:flex;justify-content:space-between;align-items:center;gap:1rem;
-  background:#29213e;color:#f7f3ff;border-radius:10px;padding:.85rem 1rem}
+  background:#252a32;color:#f6f8fb;border-radius:7px;padding:.72rem 1rem}
 .app-bar strong {font-size:1.05rem;letter-spacing:-.025em}
-.app-bar a {font-size:.8rem;color:#e0d7fc}
-[data-testid="stVerticalBlockBorderWrapper"] {background:var(--st-background-color)}
-[data-testid="stFileUploaderDropzone"] {border:1px dashed var(--st-primary-color);min-height:5rem}
-.st-key-intake [data-testid="stExpander"] details {background:var(--st-background-color)}
-.st-key-intake summary {font-weight:600}
-.sequence-view {min-width:0}
-.sequence-view h2 {font:600 1.45rem/1.2 Consolas,monospace;padding:0;overflow-wrap:anywhere}
-.sequence-view p {margin:.45rem 0 .8rem;overflow-wrap:anywhere;font-size:.9rem}
-.sequence-view figure {display:flex;flex-wrap:wrap;gap:.7rem 1.35rem;margin:0;
-  padding:.8rem;border:1px solid var(--st-border-color);border-radius:7px;
-  background:var(--st-secondary-background-color)}
-.seq-group {display:grid;gap:.18rem}
-.seq-group small {font: .73rem/1.3 Consolas,monospace}
-.seq-group b {font:600 1rem/1.3 Consolas,monospace;letter-spacing:.09em}
-.seq-group .base-A {text-decoration:underline;text-decoration-color:#8978ed;text-underline-offset:3px}
-.seq-group .base-C {text-decoration:underline;text-decoration-color:#1b9f93;text-underline-offset:3px}
-.seq-group .base-G {text-decoration:underline;text-decoration-color:#c88737;text-underline-offset:3px}
-.seq-group .base-T,.seq-group .base-U {text-decoration:underline;text-decoration-color:#d279aa;text-underline-offset:3px}
+.app-bar a {font-size:.8rem;color:#d7dff0}
+[data-testid="stSidebar"] {border-right:1px solid #858da33b}
+[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {padding-top:3.2rem}
+.sample-mast h1 {font-size:1.25rem;padding:0;overflow-wrap:anywhere}
+.sample-mast p {font-size:.85rem;margin:.35rem 0 0;font-variant-numeric:tabular-nums}
+.st-key-sequence_instrument {background:#20252d;color:#f1f4fa;border:1px solid #343c48;
+  border-radius:8px;padding:1rem 1rem .35rem}
+.st-key-sequence_plot {overflow-x:auto;min-width:0}
+.st-key-sequence_plot [data-testid="stPlotlyChart"] {min-width:650px}
+.sequence-view h2 {color:#f3f6fc;font:600 1.25rem/1.2 Consolas,monospace;
+  padding:0;overflow-wrap:anywhere}
+.sequence-view p {color:#bec9d9;font-size:.82rem;margin:.35rem 0 0;overflow-wrap:anywhere}
+.st-key-record_inspector h3 {font-size:1rem;padding:.1rem 0 .35rem}
+.st-key-record_inspector [data-testid="stMarkdownContainer"] p {font-size:.86rem}
+.st-key-viewer_registry h3 {font-size:1rem;padding:.1rem 0 .35rem}
 .st-key-composition_metrics [data-testid="stMetric"] {
   padding:.75rem;border-radius:9px;background:rgba(126,101,199,.10)}
 [data-testid="stMetricValue"] {font-variant-numeric:tabular-nums;font-size:1.6rem}
@@ -82,22 +80,113 @@ code.protein {overflow-wrap:anywhere}
 _COLLECTION = "Colección INS y GFP"
 
 
-def _sample_header(record):
-    """Display the selected FASTA record and the coordinates of each group."""
-    sequence = str(record.seq[:60]).upper()
-    groups = []
-    for offset in range(0, len(sequence), 10):
-        fragment = sequence[offset:offset + 10]
-        letters = "".join(
-            f'<span class="base-{base if base in "ACGTU" else "other"}">{escape(base)}</span>'
-            for base in fragment
+_VIEWER_SPAN = 100
+_BASE_COLORS = {"A": "#f6c253", "C": "#67d9cd", "G": "#6ec7f4",
+                "T": "#f5a677", "U": "#f5a677"}
+
+
+def _region_figure(record, start, end):
+    """Plot bases and GC windows against the same inclusive coordinates."""
+    sequence = str(record.seq[start - 1:end]).upper()
+    positions = list(range(start, end + 1))
+    base_size = min(16, max(6, 575 // len(positions)))
+    window = min(20, len(sequence))
+    rows = gc_windows_for_records([record[start - 1:end]], window, min(4, window))
+    figure = make_subplots(rows=2, cols=1, shared_xaxes=True,
+                           row_heights=[.27, .73], vertical_spacing=.12)
+    figure.add_trace(go.Scatter(
+        x=positions, y=[0] * len(positions), mode="markers+text",
+        marker=dict(symbol="square", size=base_size,
+                    color=[_BASE_COLORS.get(base, "#b6b9ca") for base in sequence]),
+        text=list(sequence), textposition="middle center",
+        textfont=dict(size=max(6, base_size - 2), color="#1c2129", family="Consolas, monospace"),
+        hovertemplate="Posición %{x} · %{text}<extra></extra>",
+    ), row=1, col=1)
+    figure.add_trace(go.Scatter(
+        x=[start - 1 + (row.start + row.end) / 2 for row in rows],
+        y=[row.gc_percent for row in rows],
+        customdata=[(start - 1 + row.start, start - 1 + row.end) for row in rows],
+        mode="lines+markers", line=dict(color="#53dfeb", width=2), marker=dict(size=4),
+        hovertemplate="%{customdata[0]}–%{customdata[1]} · GC %{y:.1f} %<extra></extra>",
+    ), row=2, col=1)
+    figure.update_xaxes(range=[start - .5, end + .5], gridcolor="#394350", zeroline=False)
+    figure.update_xaxes(side="top", showticklabels=True, row=1, col=1)
+    figure.update_xaxes(title_text="Posición (base)", row=2, col=1)
+    figure.update_yaxes(visible=False, fixedrange=True, row=1, col=1)
+    figure.update_yaxes(title_text="GC (%)", range=[0, 100], dtick=25, gridcolor="#394350",
+                        fixedrange=True, row=2, col=1)
+    figure.update_layout(height=285, margin=dict(t=28, b=44, l=53, r=14),
+                         paper_bgcolor="#20252d", plot_bgcolor="#20252d",
+                         font=dict(color="#d9e2f0"), showlegend=False, dragmode="pan")
+    return figure, rows
+
+
+def _quality_panel(checks):
+    issues = sum(level != "OK" for level, _ in checks)
+    if not issues:
+        st.badge("Sin incidencias", color="green")
+        return
+    label = "1 incidencia" if issues == 1 else f"{issues} incidencias"
+    with st.expander(label, expanded=True):
+        for level, message in checks:
+            st.text(f"{level} · {message}")
+
+
+def _select_viewer_row(labels):
+    rows = st.session_state.viewer_rows.selection.rows
+    if rows and rows[0] < len(labels):
+        st.session_state.viewer_record = labels[rows[0]]
+
+
+def _tab_viewer(record, item, stats, labels, checks, params, results):
+    plot, inspector = st.columns([3.2, 1.25], gap="small")
+    length = len(record.seq)
+    region = (1, min(length, _VIEWER_SPAN))
+    with inspector, st.container(key="record_inspector", border=True):
+        st.markdown("### Control de calidad")
+        _quality_panel(checks)
+        st.markdown("### Registro activo")
+        gc = "—" if item.gc_percent is None else f"{item.gc_percent:.2f} %"
+        st.text(f"Longitud: {length:,} bases\nGC: {gc}\nBases ambiguas: {item.ambiguous_bases}")
+        if length:
+            record_key = (st.session_state.viewer_record, length)
+            if st.session_state.get("viewer_region_record") == record_key:
+                region = st.session_state.viewer_region
+            with st.form("viewer-region"):
+                st.markdown("### Región (base 1)")
+                first, last = st.columns(2)
+                start = first.number_input("Desde", 1, length, region[0])
+                end = last.number_input("Hasta", 1, length, region[1])
+                if st.form_submit_button("Aplicar", type="primary", width="stretch"):
+                    if end < start or end - start + 1 > _VIEWER_SPAN:
+                        st.warning(f"Elige un tramo de 1 a {_VIEWER_SPAN} bases.")
+                    else:
+                        region = (start, end)
+                        st.session_state.viewer_region_record = record_key
+                        st.session_state.viewer_region = region
+    with plot, st.container(key="sequence_instrument"):
+        start, end = region
+        detail = f"Bases {start}–{end} de {length:,}" if length else "Registro vacío"
+        description = record.description.removeprefix(record.id).strip()
+        if description:
+            detail = f"{detail} · {description}"
+        st.html(f'<section class="sequence-view"><h2>{escape(record.id)}</h2>'
+                f'<p>{escape(detail)}</p></section>')
+        if length:
+            figure, rows = _region_figure(record, start, end)
+            with st.container(key="sequence_plot"):
+                st.plotly_chart(figure, theme=None, config={"displaylogo": False}, width="stretch")
+            params["Región del visor"] = f"{record.id}: {start}–{end}"
+            results["GC de la región"] = [
+                {**asdict(row), "start": start - 1 + row.start, "end": start - 1 + row.end}
+                for row in rows
+            ]
+    with st.container(key="viewer_registry", border=True):
+        st.markdown("### Registros")
+        _records_table(
+            _record_rows(stats), key="viewer_rows", selection_mode="single-row",
+            on_select=lambda: _select_viewer_row(labels),
         )
-        groups.append(f'<span class="seq-group"><small>{offset + 1}–{offset + len(fragment)}</small>'
-                      f'<b>{letters}</b></span>')
-    description = record.description.removeprefix(record.id).strip()
-    detail = " · ".join(filter(None, [escape(description), f"{len(record.seq)} bases"]))
-    track = f'<figure aria-label="Secuencia y posiciones">{"".join(groups)}</figure>' if groups else ""
-    st.html(f'<section class="sequence-view"><h2>{escape(record.id)}</h2><p>{detail}</p>{track}</section>')
 
 
 def main() -> None:
@@ -107,34 +196,43 @@ def main() -> None:
         f'<header class="app-bar"><strong>DNA Sequence Analyzer</strong>'
         f'<a href="{_REPO}">GitHub · v{__version__}</a></header>'
     )
-    with st.container(key="intake"):
-        with st.expander("Entrada de datos", expanded=True):
-            records, error = _read_records()
+    sample, intake, export = st.columns([4, 1.35, 1.1], gap="small")
+    with intake.popover("Importar FASTA", width="stretch"):
+        records, error, filename = _read_records()
     records = records or []
     stats = describe_records(records)
     checks = quality(records, stats, error) if records or error else [
         ("Aviso", "Sin muestra cargada.")
     ]
+    with sample:
+        if records:
+            defined = [item.gc_percent for item in stats if item.gc_percent is not None]
+            mean_gc = f"{sum(defined) / len(defined):.1f} %" if defined else "—"
+            total = sum(item.length for item in stats)
+            st.html(f'<section class="sample-mast"><h1>{escape(filename)}</h1>'
+                    f'<p>{len(records)} registros · {total:,} bases · GC medio {mean_gc}</p></section>')
+        else:
+            st.title("Importar secuencias")
     params = {"Origen": st.session_state.source}
     results = {}
-    if records or error:
-        issues = sum(level != "OK" for level, _ in checks)
-        status = f"{issues} avisos o errores" if issues else "Sin incidencias"
-        with st.expander(f"Control de calidad · {status}", expanded=bool(issues)):
-            colors = {"OK": "green", "Aviso": "orange", "Error": "red"}
-            for level, message in checks:
-                st.badge(level, color=colors[level])
-                st.caption(message)
     if records:
-        overview, viewer, windows, skew, translation, orfs, tm, blast, guide = st.tabs(
-            ["Resumen", "Visor", "GC por ventanas", "Sesgo GC", "Traducción", "ORFs", "Tm", "BLAST", "Guía"]
+        labels = record_labels(records)
+        st.sidebar.header("Muestra")
+        st.sidebar.text(filename)
+        if st.session_state.get("viewer_record") not in labels:
+            st.session_state.viewer_record = labels[0]
+        if len(labels) <= 8:
+            selected = st.sidebar.radio("Registro en el visor", labels, key="viewer_record")
+        else:
+            selected = st.sidebar.selectbox("Registro en el visor", labels, key="viewer_record")
+        index = labels.index(selected)
+        viewer, overview, windows, skew, translation, orfs, tm, blast, guide = st.tabs(
+            ["Visor", "Resumen", "GC por ventanas", "Sesgo GC", "Traducción", "ORFs", "Tm", "BLAST", "Guía"]
         )
+        with viewer:
+            _tab_viewer(records[index], stats[index], stats, labels, checks, params, results)
         with overview:
             _tab_resumen(stats, results)
-        with viewer:
-            labels = record_labels(records)
-            selected = st.selectbox("Registro en el visor", labels)
-            _sample_header(records[labels.index(selected)])
         with windows:
             _tab_ventanas(records, results, params)
         with skew:
@@ -144,6 +242,10 @@ def main() -> None:
         with orfs:
             _tab_orfs(records)
     else:
+        if error:
+            st.error(error)
+        else:
+            st.info("Abre Importar FASTA para cargar un archivo o pegar una secuencia.")
         with st.expander("Herramientas disponibles sin archivo"):
             tm, blast, guide = st.tabs(["Tm", "BLAST", "Guía"])
     with tm:
@@ -154,17 +256,15 @@ def main() -> None:
         _tab_aprende()
     metadata = run_metadata(records, params, st.session_state.get("metadata"))
     st.session_state.metadata = metadata
-    with st.expander("Exportación y metadatos"):
-        export, details = st.columns(2)
-        with export:
-            st.download_button("Descargar informe HTML", report(metadata, checks, results),
-                               f"analisis-{metadata['ID']}.html", "text/html")
-            available = [title for title, rows in results.items() if rows]
-            if available:
-                selected = st.selectbox("Tabla de resultados", available)
-                st.download_button("Descargar tabla CSV", result_csv(results[selected]),
-                                   f"{selected}-{metadata['ID']}.csv", "text/csv")
-        with details:
+    with export.popover("Exportar", width="stretch"):
+        st.download_button("Descargar informe HTML", report(metadata, checks, results),
+                           f"analisis-{metadata['ID']}.html", "text/html")
+        available = [title for title, rows in results.items() if rows]
+        if available:
+            selected = st.selectbox("Tabla de resultados", available)
+            st.download_button("Descargar tabla CSV", result_csv(results[selected]),
+                               f"{selected}-{metadata['ID']}.csv", "text/csv")
+        with st.expander("Metadatos del análisis"):
             st.json(metadata, expanded=False)
 
 
@@ -304,27 +404,45 @@ def _tab_traduccion(records, results, params) -> None:
 
 def _read_records():
     """Read the selected input and return records or a parsing error."""
-    source_column, input_column = st.columns([1, 2])
-    source = source_column.selectbox(
-        "Origen",
-        ["Subir un FASTA", "Pegar texto", _COLLECTION],
-        key="source",
+    source = st.selectbox(
+        "Origen", ["Subir un FASTA", "Pegar texto", _COLLECTION], key="source",
     )
-    with input_column:
-        try:
-            if source == _COLLECTION:
-                st.caption("Transcritos públicos de insulina humana y GFP.")
-                path = bundled_example_fasta()
-                return parse_sequence_text(path.read_text(encoding="utf-8")), None
-            if source == "Pegar texto":
-                pasted = st.text_area("FASTA o secuencia", height=130)
-                return (parse_sequence_text(pasted), None) if pasted.strip() else (None, None)
-            uploaded = st.file_uploader("Archivo FASTA", type=["fasta", "fa", "fna", "txt"])
-            if uploaded is None:
-                return None, None
-            return parse_sequence_text(text_from_upload(uploaded.getvalue())), None
-        except (ValueError, FileNotFoundError, OSError) as exc:
-            return None, str(exc)
+    try:
+        if source == _COLLECTION:
+            st.caption("Transcritos públicos de insulina humana y GFP.")
+            path = bundled_example_fasta()
+            return parse_sequence_text(path.read_text(encoding="utf-8")), None, _COLLECTION
+        if source == "Pegar texto":
+            pasted = st.text_area("FASTA o secuencia", height=130)
+            return parse_sequence_text(pasted) if pasted.strip() else [], None, "Secuencia pegada"
+        uploaded = st.file_uploader("Archivo FASTA", type=["fasta", "fa", "fna", "txt"])
+        if uploaded is None:
+            return [], None, ""
+        return parse_sequence_text(text_from_upload(uploaded.getvalue())), None, uploaded.name
+    except (ValueError, FileNotFoundError, OSError) as exc:
+        return [], str(exc), ""
+
+
+def _record_rows(stats):
+    return [
+        {
+            "id": item.id,
+            "longitud": item.length,
+            "GC %": None if item.gc_percent is None else round(item.gc_percent, 2),
+            "ambiguas": item.ambiguous_bases,
+            "tipo": item.nucleic_acid,
+            "aviso": item.gc_flag or "",
+        }
+        for item in stats
+    ]
+
+
+def _records_table(rows, **selection):
+    st.dataframe(rows, row_height=34, width="stretch", hide_index=True, column_config={
+        "id": "Identificador", "longitud": "Longitud (bases)", "ambiguas": "Bases ambiguas",
+        "tipo": "Ácido nucleico", "aviso": "Aviso",
+        "GC %": st.column_config.ProgressColumn("GC (%)", min_value=0, max_value=100, format="%.2f"),
+    }, **selection)
 
 
 def _tab_resumen(stats, results) -> None:
@@ -347,26 +465,12 @@ def _tab_resumen(stats, results) -> None:
     cards[1].metric("Bases en total", f"{sum(item.length for item in stats):,}".replace(",", "."), border=True)
     cards[2].metric("GC medio", "—" if mean_gc is None else f"{mean_gc:.1f} %", border=True)
     cards[3].metric("Con aviso de GC", flagged, border=True)
-    table = [
-        {
-            "id": item.id,
-            "longitud": item.length,
-            "GC %": None if item.gc_percent is None else round(item.gc_percent, 2),
-            "ambiguas": item.ambiguous_bases,
-            "tipo": item.nucleic_acid,
-            "aviso": item.gc_flag or "",
-        }
-        for item in stats
-    ]
+    table = _record_rows(stats)
     results["Resumen GC"] = table
     registry, distribution = st.columns([3, 2], gap="medium")
     with registry, st.container(border=True):
         st.subheader("Registros")
-        st.dataframe(table, row_height=36, width="stretch", hide_index=True, column_config={
-            "id": "Identificador", "longitud": "Longitud (bases)", "ambiguas": "Bases ambiguas",
-            "tipo": "Ácido nucleico", "aviso": "Aviso",
-            "GC %": st.column_config.ProgressColumn("GC (%)", min_value=0, max_value=100, format="%.2f"),
-        })
+        _records_table(table)
         with st.expander("Cálculo y umbrales de GC"):
             st.write(method)
         st.download_button(
