@@ -27,6 +27,8 @@ from dna_sequence_analyzer.web_input import (
     describe_records,
     explain_tm_error,
     parse_sequence_text,
+    looks_like_fasta,
+    read_fasta_text,
     record_labels,
     text_from_upload,
 )
@@ -69,7 +71,7 @@ def main() -> None:
     records, error = _sidebar_records()
     records = records or []
     stats = describe_records(records)
-    checks = quality(records, stats, error) if records or error else [("Aviso", "Sin muestra cargada.")]
+    checks = quality(records, stats, error, comments=st.session_state.fasta_comments) if records or error else [("Aviso", "Sin muestra cargada.")]
     record = item = None
     if records:
         labels = record_labels(records)
@@ -341,6 +343,7 @@ def _tab_blast(record, results, params, settings, active):
 
 def _sidebar_records():
     """Read the sidebar and return ``(records, error_message)``."""
+    st.session_state.fasta_comments = 0
     st.sidebar.header("Muestra")
     source = st.sidebar.segmented_control(
         "Origen", ["Ejemplo", "Pegar", "Subir FASTA"], default="Subir FASTA",
@@ -350,7 +353,7 @@ def _sidebar_records():
         if source == "Ejemplo":
             path = bundled_example_fasta()
             st.sidebar.caption(f"Archivo: `{path.name}`")
-            return parse_sequence_text(path.read_text(encoding="utf-8")), None
+            return _parse_sample(path.read_text(encoding="utf-8")), None
         if source == "Pegar":
             pasted = st.sidebar.text_area(
                 "FASTA o secuencia",
@@ -359,13 +362,20 @@ def _sidebar_records():
             )
             if not pasted.strip():
                 return None, "Pega un FASTA o una secuencia de bases en el panel de la izquierda."
-            return parse_sequence_text(pasted), None
+            return _parse_sample(pasted), None
         uploaded = st.sidebar.file_uploader("Archivo FASTA", type=["fasta", "fa", "fna", "txt"])
         if uploaded is None:
             return None, None
-        return parse_sequence_text(text_from_upload(uploaded.getvalue())), None
+        return _parse_sample(text_from_upload(uploaded.getvalue())), None
     except (ValueError, FileNotFoundError, OSError) as exc:
         return None, str(exc)
+
+
+def _parse_sample(text):
+    if looks_like_fasta(text):
+        records, st.session_state.fasta_comments = read_fasta_text(text)
+        return records
+    return parse_sequence_text(text)
 
 
 def _tab_resumen(stats, results) -> None:

@@ -75,11 +75,11 @@ def blast(
     timeout: float = typer.Option(300, "--timeout", help="Tiempo máximo en segundos."),
 ) -> None:
     """Envía un FASTA público a NCBI y escribe los resultados como CSV."""
-    from Bio import SeqIO
-
     try:
-        with fasta_file.open(encoding="utf-8") as handle:
-            record = SeqIO.read(handle, "fasta")
+        records = read_fasta(fasta_file)
+        if len(records) != 1:
+            raise ValueError("La consulta BLAST requiere un ?nico registro FASTA.")
+        record = records[0]
         options = BlastOptions(program, db or ("nr" if program == "blastp" else "nt"), evalue, max_hits)
         hits = search(str(record.seq), options, email=os.getenv("NCBI_EMAIL"), timeout=timeout)
     except (OSError, ValueError) as exc:

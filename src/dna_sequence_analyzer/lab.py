@@ -9,9 +9,10 @@ import json
 from jinja2 import Environment
 
 from . import __version__
+from .ui_theme import format_es
 
 
-def quality(records, stats, error=None):
+def quality(records, stats, error=None, *, comments=0):
     if error:
         return [("Error", error)]
     checks = []
@@ -27,6 +28,8 @@ def quality(records, stats, error=None):
             checks.append(("Aviso", f"{record.id} · {ambiguous} bases ambiguas."))
         if item.gc_flag:
             checks.append(("Aviso", f"{record.id} · GC extremo ({item.gc_percent:.1f} %)."))
+    if comments:
+        checks.append(("Aviso", f"se ignoraron {format_es(comments)} l?neas de comentario antes del primer registro"))
     return checks or [("OK", "Muestra sin incidencias.")]
 
 

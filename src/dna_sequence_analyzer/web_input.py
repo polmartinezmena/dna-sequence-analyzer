@@ -12,6 +12,7 @@ from pathlib import Path
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
+from dna_sequence_analyzer.fasta import read_fasta_text
 from dna_sequence_analyzer.gc import SequenceStats, analyze_records
 
 _BASES = frozenset("ACGTU")
@@ -33,14 +34,7 @@ def parse_sequence_text(text: str) -> list[SeqRecord]:
     if not cleaned:
         raise ValueError("Pega un FASTA o una secuencia de bases.")
     if looks_like_fasta(cleaned):
-        from Bio import SeqIO
-
-        records = list(SeqIO.parse(io.StringIO(cleaned), "fasta"))
-        if not records:
-            raise ValueError(
-                "No encuentro registros FASTA. Cada secuencia tiene que empezar por '>'."
-            )
-        return records
+        return read_fasta_text(text)[0]
 
     sequence = "".join(cleaned.split())
     if not any(base in _BASES for base in sequence.upper()):
@@ -51,10 +45,10 @@ def parse_sequence_text(text: str) -> list[SeqRecord]:
 
 
 def looks_like_fasta(text: str) -> bool:
-    """True when the first non-empty line starts with ``>``."""
+    """True when the first line after blanks and comments starts with ``>``."""
     for line in text.splitlines():
         stripped = line.strip()
-        if stripped:
+        if stripped and not stripped.startswith((";", "#")):
             return stripped.startswith(">")
     return False
 

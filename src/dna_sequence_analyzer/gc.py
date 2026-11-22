@@ -28,7 +28,7 @@ that could fall on either side, such as ``N``, are left out. See
 from dataclasses import dataclass
 from pathlib import Path
 
-from Bio import SeqIO
+from .fasta import read_fasta_text
 from Bio.SeqRecord import SeqRecord
 
 # Bases that count as G or C.
@@ -180,8 +180,8 @@ def read_fasta(path: str | Path) -> list[SeqRecord]:
         raise ValueError(f"FASTA file is empty: {fasta_path}")
 
     try:
-        with fasta_path.open(encoding="utf-8") as handle:
-            records = list(SeqIO.parse(handle, "fasta"))
+        with fasta_path.open(encoding="utf-8-sig") as handle:
+            records, _ = read_fasta_text(handle)
     except UnicodeDecodeError as exc:
         raise ValueError(
             f"Could not read {fasta_path} as text. A FASTA file should be plain text."
