@@ -52,34 +52,43 @@ def load_example():
 
 def close_import():
     st.session_state.pop("import_mode", None)
+    st.session_state.pop("import_error", None)
+
+
+def submit_import(source_key, default_mode):
+    state = st.session_state
+    source = state.get(source_key) or default_mode
+    try:
+        if source == "Ejemplo":
+            load_example()
+        elif source == "Pegar texto":
+            load_sample(state.get("texto-fasta", ""), "pegado.fasta", source)
+        elif (upload := state.get("archivo-fasta")) is not None:
+            load_sample(text_from_upload(upload.getvalue()), Path(upload.name).name, source)
+        else:
+            raise ValueError("Selecciona un archivo FASTA.")
+    except (OSError, ValueError) as exc:
+        state.import_error = str(exc)
+    else:
+        close_import()
 
 
 @st.dialog("Importar FASTA", on_dismiss=close_import)
 def import_dialog(mode):
-    source = st.segmented_control("Origen del FASTA", IMPORT_MODES, default=mode, key=f"origen-{mode}") or mode
-    upload = text = None
+    if "import_mode" not in st.session_state:
+        st.rerun()
+    source_key = f"origen-{mode}"
+    source = st.segmented_control("Origen del FASTA", IMPORT_MODES, default=mode, key=source_key) or mode
     if source == "Subir archivo":
-        upload = st.file_uploader("Archivo FASTA", type=["fasta", "fa", "fna", "txt"])
+        st.file_uploader("Archivo FASTA", type=["fasta", "fa", "fna", "txt"], key="archivo-fasta")
     elif source == "Pegar texto":
-        text = st.text_area("FASTA o secuencia", height=200, placeholder=">mi_secuencia\nATGC",
-                            key="texto-fasta")
+        st.text_area("FASTA o secuencia", height=200, placeholder=">mi_secuencia\nATGC", key="texto-fasta")
     else:
         st.caption("Carga los registros de insulina humana y proteína fluorescente del ejemplo.")
-    if st.button("Cargar muestra", type="primary", key="cargar-muestra"):
-        try:
-            if source == "Ejemplo":
-                load_example()
-            elif source == "Pegar texto":
-                load_sample(text, "pegado.fasta", source)
-            elif upload is not None:
-                load_sample(text_from_upload(upload.getvalue()), Path(upload.name).name, source)
-            else:
-                raise ValueError("Selecciona un archivo FASTA.")
-        except (OSError, ValueError) as exc:
-            st.error(str(exc))
-        else:
-            close_import()
-            st.rerun()
+    st.button("Cargar muestra", type="primary", key="cargar-muestra",
+              on_click=submit_import, args=(source_key, mode))
+    if error := st.session_state.get("import_error"):
+        st.error(error)
 
 
 def sidebar(records, active, view):

@@ -26,7 +26,9 @@ def main():
         except (OSError, ValueError) as exc:
             st.error(f"No se pudo cargar el ejemplo: {exc}")
             if st.button("Importar FASTA", icon=":material/upload:"):
-                layout.import_dialog("Subir archivo")
+                state.import_mode = "Subir archivo"
+            if mode := state.get("import_mode"):
+                layout.import_dialog(mode)
             return
     records = state.records
     if view == "Visor":

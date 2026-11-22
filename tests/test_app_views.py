@@ -164,6 +164,8 @@ def test_visor_segments_annotations_and_exports(app):
     assert any('class="orf-track-bar"' in body for body in html_elements(app))
     assert {"ORFs FASTA", "ORFs GFF3"} <= download_labels(app)
     apply_region(app, 1, 20)
+    app.session_state["pestana-visor"] = "Anotaciones"
+    app.run()
     assert any("No hay ORFs" in message.value for message in app.info)
 
 
