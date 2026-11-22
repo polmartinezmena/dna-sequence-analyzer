@@ -496,12 +496,11 @@ dna-analyzer gc data/no-existe.fasta
 ```
 
 ```text
-Error: FASTA file not found: data/no-existe.fasta
+Error: No se encontró el archivo FASTA: data/no-existe.fasta
 ```
 
-Un archivo vacío da `Error: FASTA file is empty: ...`. Un archivo que
-no empieza por `>` da `Error: Could not parse ... as FASTA`. Una carpeta
-da `Error: Path is not a file: ...`.
+Si el archivo está vacío, no se puede leer como FASTA o la ruta apunta a una
+carpeta, el comando muestra el motivo en español y termina con código 1.
 
 ## App web
 
@@ -512,15 +511,32 @@ uv sync --extra dev --extra web --extra plot
 uv run --no-sync streamlit run app/streamlit_app.py
 ```
 
-En **Muestra** puedes subir un FASTA, pegar una secuencia o abrir el ejemplo público.
-El registro activo se comparte entre el resumen, el visor, ORFs y BLAST.
-**Exportar** da acceso a los metadatos. En el panel lateral también están
-el informe HTML y las tablas CSV. El informe recoge los parámetros, el control
-de calidad y la huella SHA-256 de la muestra. La Tm usa su propio oligo.
+La app abre en **Visor** con `examples.fasta`. En **Muestra** puedes elegir
+un registro o abrir **Importar FASTA** para subir un archivo, pegar texto
+o volver al ejemplo. Los comentarios `;` y `#` antes de la primera cabecera
+se omiten y se indican en el control de calidad.
 
-| Tema claro | Tema oscuro |
-| --- | --- |
-| ![Visor de secuencia en tema claro](https://raw.githubusercontent.com/polmartinezmena/dna-sequence-analyzer/main/docs/images/app-light.png) | ![Visor de secuencia en tema oscuro](https://raw.githubusercontent.com/polmartinezmena/dna-sequence-analyzer/main/docs/images/app-dark.png) |
+- **Visor** muestra las bases numeradas, el perfil GC de la región y los
+  ORFs que se solapan con ella. La región usa coordenadas inclusivas desde 1,
+  admite hasta 500 pb y se recuerda por registro.
+- **Resumen** compara la composición, el CpG observado/esperado y el
+  sesgo GC. El GC de la muestra se calcula con las bases definidas de todos los registros.
+- **Traducción** alinea los seis marcos y permite descargar la proteína seleccionada.
+- **ORFs** busca candidatos en ambas hebras. Por defecto empieza por ATG.
+  Puedes habilitar los inicios alternativos de la tabla elegida.
+- **BLAST** compara secuencias públicas con NCBI con tu consentimiento.
+  La app admite una consulta por sesión cada cinco minutos y hasta
+  10.000 nt en `blastn` o 2.000 aa en `blastp`.
+- **Oligo Tm** estima la temperatura de fusión de un oligo.
+- **Aprende** explica las métricas y sus límites.
+
+**Exportar**, en la cabecera, ofrece un informe HTML claro, los metadatos JSON
+y las tablas CSV de la vista. Cuando hay un resultado compatible, incluye
+la proteína FASTA o los ORFs en FASTA y GFF3. Los metadatos incluyen la huella
+SHA-256 de la muestra y los parámetros del análisis.
+
+[Captura anterior en tema claro](https://raw.githubusercontent.com/polmartinezmena/dna-sequence-analyzer/main/docs/images/app-light.png) ·
+[Captura anterior en tema oscuro](https://raw.githubusercontent.com/polmartinezmena/dna-sequence-analyzer/main/docs/images/app-dark.png)
 
 ### Publicarla gratis en Streamlit Community Cloud
 
@@ -551,7 +567,9 @@ src/dna_sequence_analyzer/
     tm.py                       Tm por vecinos más próximos, para oligos
     plots.py                    PNG opcionales; matplotlib no es obligatorio
     cli.py                      las tablas y los comandos, incluido web
-    webapp.py                   la interfaz de Streamlit
+    app/layout.py               importación, navegación y exportación
+    app/views/                  las siete vistas de Streamlit
+    webapp.py                   punto de entrada de Streamlit
     web_input.py                pegar texto o leer un archivo subido
     __main__.py                 permite python -m dna_sequence_analyzer
 app/streamlit_app.py            archivo que abre Streamlit Cloud
@@ -636,13 +654,17 @@ en los seis marcos de la secuencia elegida.
 ## ORFs y BLAST
 
 ```powershell
-dna-analyzer orfs data/examples.fasta --min-aa 30 --table 1 --nested --format csv
+dna-analyzer orfs data/examples.fasta --min-aa 30 --table 1 --format csv
+dna-analyzer orfs data/examples.fasta --table 11 --alt-starts --nested --format csv
 dna-analyzer orfs data/examples.fasta --allow-no-stop --format gff
 dna-analyzer orfs data/examples.fasta --min-aa 30 --format fasta
 ```
 
-Un marco abierto empieza en un codón de inicio de la tabla genética elegida y
-termina en la primera parada del mismo marco. La opción `--allow-no-stop`
+Un marco abierto empieza en ATG y termina en la primera parada del mismo
+marco. Usa `--alt-starts` para aceptar también los codones de inicio
+alternativos de la tabla NCBI elegida y `--nested` para incluir inicios
+anidados. El CSV indica la hebra, el codón real y su posición (el extremo
+derecho en la hebra inversa). La opción `--allow-no-stop`
 incluye candidatos que alcanzan el final sin parada, usando solo codones
 completos. Las coordenadas empiezan en 1, incluyen ambos extremos y siempre
 se refieren a la secuencia original, también en la hebra reversa.
@@ -653,9 +675,12 @@ un ORF exportado como FASTA, usa `blastp` con `nr`.
 
 ```powershell
 $env:NCBI_EMAIL = 'tu-correo-de-contacto'
-dna-analyzer blast .\consulta-publica.fasta --program blastn --db nt --evalue 0.01 --max-hits 10
+dna-analyzer blast .\consulta-publica.fasta --program blastn --db nt --megablast --evalue 0.01 --max-hits 10
 dna-analyzer blast .\proteina-publica.fasta --program blastp --db nr --timeout 300
 ```
+
+MegaBLAST está activado por defecto en `blastn`. Usa `--no-megablast` para
+desactivarlo. Estos indicadores se omiten en `blastp`.
 
 La identidad se calcula en el mejor alineamiento local y la cobertura suma
 el intervalo cubierto por todos los alineamientos del resultado, sin duplicar
