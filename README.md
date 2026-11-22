@@ -30,6 +30,25 @@ proteínas o GFF3. En la CLI usa `--format fasta` o `--format gff`.
 Las coordenadas exportadas empiezan en 1 y ambos extremos son inclusivos.
 El intervalo incluye la parada y la proteína no la incluye.
 
+**Ejemplo reproducible.** En la app, pulsa **Cargar ejemplo**, abre **ORFs**
+y selecciona `NM_000207.3`. Con la tabla 1, un mínimo de 30 aa e inicios
+solo ATG, el marco `+3` muestra un candidato de 110 aa entre las posiciones
+60 y 392. Es un intervalo de 333 nucleótidos: 330 codifican los 110
+aminoácidos y los 3 restantes forman el codón de parada.
+
+Para ver ese mismo resultado desde PowerShell:
+
+```powershell
+uv run dna-analyzer orfs data/examples.fasta --min-aa 30 --table 1 --format csv |
+    ConvertFrom-Csv |
+    Where-Object { $_.id -eq 'NM_000207.3' -and $_.frame -eq '+3' } |
+    Format-Table id, frame, start_1based, end_inclusive, length_aa
+```
+
+Verás también un candidato de 106 aa que empieza en 72 y termina en 392.
+Al desactivar **Incluir ORFs anidados** (o usar `--exclude-nested` en la CLI)
+queda el de 110 aa. Esa diferencia muestra el efecto del filtro de inicios.
+
 ### Entrada FASTA
 
 Un archivo FASTA guarda una o varias secuencias. Cada una empieza por
