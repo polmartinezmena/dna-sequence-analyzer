@@ -14,7 +14,7 @@ from os import getenv
 from time import monotonic
 from urllib.parse import quote
 from dna_sequence_analyzer.blast import BlastOptions, search, session_wait_seconds
-from dna_sequence_analyzer.lab import quality, run_metadata, report, result_csv
+from dna_sequence_analyzer.lab import global_gc_percent, quality, run_metadata, report, result_csv
 
 from dna_sequence_analyzer.plots import lab_template
 from dna_sequence_analyzer.ui_theme import ACCENT, SERIES_2, format_es, stylesheet
@@ -395,9 +395,8 @@ def _tab_resumen(stats, results) -> None:
     if not stats:
         st.info("Cuando haya una secuencia válida, aquí verás la tabla de registros.")
         return
-    defined = [item.gc_percent for item in stats if item.gc_percent is not None]
     flagged = sum(1 for item in stats if item.gc_flag)
-    mean_gc = sum(defined) / len(defined) if defined else None
+    mean_gc = global_gc_percent(stats)
     cards = st.columns(4)
     cards[0].metric("Secuencias", len(stats))
     cards[1].metric("Bases en total", format_es(sum(item.length for item in stats)))

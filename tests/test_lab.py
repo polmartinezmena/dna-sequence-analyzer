@@ -50,3 +50,12 @@ def test_app_example():
     app.run()
     assert not app.exception
     assert app.session_state["orf_result"][2]
+
+
+def test_global_gc_is_weighted_and_excludes_ambiguous_bases():
+    from dna_sequence_analyzer.lab import global_gc_percent
+    from dna_sequence_analyzer.web_input import describe_records, parse_sequence_text
+
+    stats = describe_records(parse_sequence_text(">corta\nGCNN\n>larga\nAAAAAAAA"))
+    assert global_gc_percent(stats) == 20
+    assert global_gc_percent([]) is None

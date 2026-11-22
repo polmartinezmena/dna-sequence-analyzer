@@ -33,6 +33,12 @@ def quality(records, stats, error=None, *, comments=0):
     return checks or [("OK", "Muestra sin incidencias.")]
 
 
+def global_gc_percent(stats):
+    """Pool GC and defined-base counts across records before dividing."""
+    defined = sum(item.unambiguous_bases for item in stats)
+    return 100 * sum(item.gc_bases for item in stats) / defined if defined else None
+
+
 def run_metadata(records, parameters, previous=None):
     sample = [(r.id, str(r.seq)) for r in records]
     digest = sha256(json.dumps(sample, ensure_ascii=True).encode()).hexdigest()
