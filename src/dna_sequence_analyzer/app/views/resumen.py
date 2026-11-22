@@ -9,6 +9,10 @@ from dna_sequence_analyzer.ui_theme import ACCENT, SERIES_2, format_es, spanish_
 from dna_sequence_analyzer.windows import gc_windows_for_records, skew_extrema, skew_windows_for_records
 
 
+_SEQUENCE_TYPES = {"dna": "ADN", "rna": "ARN", "mixed": "Mixto", "unspecified": "Indeterminado"}
+_GC_FLAGS = {"low-gc": "GC bajo", "high-gc": "GC alto"}
+
+
 def render(record, item, stats, checks, results, params, settings, exports):
     with st.container(border=True, key="tarjeta-resumen"):
         _tab_resumen(stats, results)
@@ -36,8 +40,8 @@ def _tab_resumen(stats, results) -> None:
             "GC %": None if item.gc_percent is None else round(item.gc_percent, 2),
             "perfil": item.gc_percent,
             "ambiguas": item.ambiguous_bases,
-            "tipo": item.nucleic_acid,
-            "aviso": item.gc_flag or "",
+            "tipo": _SEQUENCE_TYPES[item.nucleic_acid],
+            "aviso": _GC_FLAGS.get(item.gc_flag, ""),
         }
         for item in stats
     ]

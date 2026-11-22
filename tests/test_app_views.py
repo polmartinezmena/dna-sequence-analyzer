@@ -146,3 +146,41 @@ def test_blast_result_and_cooldown_use_mocked_search(app, monkeypatch):
     assert app.button(key="lanzar-blast").disabled
     assert app.dataframe[0].value.iloc[0]["accession"] == "TEST.1"
     assert app.session_state["metadata"]["MegaBLAST"] is True
+
+
+def download_labels(app):
+    return {button.proto.label for button in app.get("download_button")}
+
+
+def test_visor_segments_annotations_and_exports(app):
+    assert {"Informe HTML", "CSV de la vista actual", "Metadatos JSON"} <= download_labels(app)
+    app.session_state["pestana-visor"] = "Vista por tramos"
+    app.run()
+    assert not app.exception
+    assert any('data-frame="+3"' in body for body in html_elements(app))
+    app.session_state["pestana-visor"] = "Anotaciones"
+    app.run()
+    assert not app.exception
+    assert any('class="orf-track-bar"' in body for body in html_elements(app))
+    assert {"ORFs FASTA", "ORFs GFF3"} <= download_labels(app)
+    apply_region(app, 1, 20)
+    assert any("No hay ORFs" in message.value for message in app.info)
+
+
+def test_protein_download_is_in_sample_exports(app):
+    open_view(app, "Traducción")
+    assert "Proteína FASTA" in download_labels(app)
+
+
+def test_viewer_gc_uses_centered_windows_and_full_record_reference(app):
+    import json
+
+    app.button(key="pegar-muestra").click().run()
+    app.text_area(key="texto-fasta").set_value(">demo\nAGNC")
+    app.button(key="cargar-muestra").click().run()
+    app.number_input(key="ventana-visor").set_value(2).run()
+    assert not app.exception
+    spec = json.loads(app.get("plotly_chart")[0].proto.spec)
+    assert spec["data"][0]["x"] == [1.5, 2.5, 3.5]
+    assert spec["data"][0]["y"] == [50.0, 100.0, 100.0]
+    assert spec["layout"]["shapes"][0]["y0"] == pytest.approx(200 / 3)

@@ -88,3 +88,21 @@ def test_megablast_cache_key(tmp_path):
 @pytest.mark.parametrize(("last", "now", "expected"), [(None, 10, 0), (10, 11.1, 299), (10, 310, 0)])
 def test_blast_session_wait(last, now, expected):
     assert blast.session_wait_seconds(last, now) == expected
+
+
+@pytest.mark.parametrize(("flags", "enabled"), [([], True), (["--no-megablast"], False), (["--megablast"], True)])
+def test_cli_passes_megablast_option(monkeypatch, tmp_path, flags, enabled):
+    from typer.testing import CliRunner
+
+    from dna_sequence_analyzer import cli
+
+    fasta = tmp_path / "query.fa"
+    fasta.write_text(">demo\nACGT\n", encoding="ascii")
+
+    def fake_search(seq, options, **kwargs):
+        assert options.megablast is enabled
+        return []
+
+    monkeypatch.setattr(cli, "search", fake_search)
+    result = CliRunner().invoke(cli.app, ["blast", str(fasta), *flags])
+    assert result.exit_code == 0, result.output

@@ -64,11 +64,12 @@ def render_base_tiles_html(sequence, start, end, record_id, rna=False):
     """Render aligned ruler marks and base tiles for an inclusive interval."""
     if not 1 <= start <= end <= len(sequence):
         raise ValueError("La región debe estar dentro de la secuencia.")
-    fragment = sequence[start - 1:end].upper()
-    if rna:
-        fragment = fragment.replace("T", "U")
+    fragment = sequence[start - 1:end]
     cells = []
-    for position, base in enumerate(fragment, start):
+    for position, symbol in enumerate(fragment, start):
+        base = symbol.upper()
+        if rna and base == "T":
+            base = "U"
         tick = "tile-tick mark" if position == start or position % 10 == 0 else "tile-tick"
         color = BASE_COLORS.get(base, BASE_COLORS["other"])
         tone = " tile-ambiguous" if base not in BASE_COLORS else ""

@@ -58,6 +58,9 @@ def main():
         visor.records_table(stats, results)
     metadata = run_metadata(records, params, previous)
     state.metadata = metadata
+    saved_orfs = state.get("orf_result")
+    if saved_orfs and saved_orfs[2] and saved_orfs[0] == orfs.record_key(record):
+        layout.orf_downloads(exports, saved_orfs[2])
     layout.downloads(popover, metadata, checks, results, exports)
     layout.run_footer(footer, metadata)
     if mode := state.get("import_mode"):

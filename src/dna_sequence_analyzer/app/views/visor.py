@@ -13,6 +13,8 @@ from dna_sequence_analyzer.ui_theme import CHART_LINE, INDIGO_SOFT, REFERENCE, f
 from dna_sequence_analyzer.viewer import render_base_tiles_html, render_orf_track_html, render_sequence_html
 from dna_sequence_analyzer.windows import gc_windows_for_records
 
+from ..layout import orf_downloads
+
 _PROGRAMMATIC_SELECTION = "selection_default" in signature(st.dataframe).parameters
 _TABLE_KEY = "tabla-registros"
 _STATUS_ICONS = {"OK": "check_circle", "Aviso": "warning", "Error": "error"}
@@ -47,7 +49,7 @@ def render(record, item, stats, checks, results, params, settings, exports):
                 st.html(html)
         if annotations.open:
             with annotations:
-                _annotations(sequence, start, end, results)
+                _annotations(record.id, sequence, start, end, results, exports)
 
 
 def records_table(stats, results):
@@ -146,8 +148,10 @@ def _region(length):
 def _gc_plot(record, item, start, end, results, params):
     st.markdown("**GC por posición (%)**")
     size = end - start + 1
-    window = st.number_input("Ventana (pb)", min_value=1, max_value=size, value=min(10, size),
-                             key=f"ventana-visor-{size}", width=148)
+    default_window = min(st.session_state.get("saved_viewer_window", 10), size)
+    window = st.number_input("Ventana (pb)", min_value=1, max_value=size, value=default_window,
+                             key="ventana-visor", width=148)
+    st.session_state.saved_viewer_window = window
     params["Ventana del visor (pb)"] = window
     rows = gc_windows_for_records([record[start - 1:end]], window, 1)
     positions = [start - 1 + (row.start + row.end) / 2 for row in rows]
@@ -172,7 +176,7 @@ def _gc_plot(record, item, start, end, results, params):
     st.plotly_chart(figure, theme=None, width="stretch", config={"displayModeBar": False})
 
 
-def _annotations(sequence, start, end, results):
+def _annotations(record_id, sequence, start, end, results, exports):
     try:
         hits = [hit for hit in find_orfs(sequence, min_aa=30) if hit.start <= end and hit.end >= start]
     except ValueError as exc:
@@ -182,6 +186,7 @@ def _annotations(sequence, start, end, results):
         st.info("No hay ORFs ≥ 30 aa en esta región.")
         return
     st.html(render_orf_track_html(hits, start, end))
+    orf_downloads(exports, [(record_id, hit) for hit in hits])
     results["Anotaciones"] = [
         {"Marco": hit.frame.replace("-", "−"), "Hebra": hit.strand.replace("-", "−"),
          "Inicio": hit.start, "Fin": hit.end, "Longitud (aa)": len(hit.protein)}

@@ -89,3 +89,18 @@ def test_seeded_orfs_match_coordinates_on_both_strands():
         assert fragment[:3] == hit.start_codon == "ATG"
         assert str(fragment.translate()) == hit.protein + "*"
         assert hit.start_codon_position == (hit.start if hit.strand == "+" else hit.end)
+
+
+def test_cli_alternative_start_and_codon_columns(tmp_path):
+    import csv
+
+    fasta = tmp_path / "alternativo.fasta"
+    fasta.write_text(">demo\nGTGAAATAA\n", encoding="ascii")
+    args = ["orfs", str(fasta), "--table", "11", "--min-aa", "2"]
+    runner = CliRunner()
+    assert not list(csv.DictReader(runner.invoke(app, args).stdout.splitlines()))
+    result = runner.invoke(app, [*args, "--alt-starts"])
+    assert result.exit_code == 0, result.output
+    row, = csv.DictReader(result.stdout.splitlines())
+    assert [row[key] for key in ("Hebra", "Codón de inicio", "Posición del codón de inicio")] == ["+", "GTG", "1"]
+    assert row["protein"] == "MK"

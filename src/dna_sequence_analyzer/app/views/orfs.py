@@ -4,7 +4,7 @@ import streamlit as st
 from dataclasses import asdict
 from hashlib import sha256
 
-from dna_sequence_analyzer.orfs import export_orfs, find_orfs
+from dna_sequence_analyzer.orfs import find_orfs
 from dna_sequence_analyzer.plots import lab_template
 from dna_sequence_analyzer.translate import TABLES
 from dna_sequence_analyzer.ui_theme import ACCENT, SERIES_2, spanish_table
@@ -53,8 +53,6 @@ def render(record, item, stats, checks, results, params, settings, exports):
          "Hebra": hit.strand.replace("-", "−"), "Posición del codón de inicio": hit.start_codon_position}
         for hit in hits
     ]
-    for kind, extension in (("fasta", "fasta"), ("gff", "gff3")):
-        exports[f"ORFs {extension.upper()}"] = (export_orfs(saved[2], kind), f"orfs.{extension}", "text/plain")
     st.dataframe(spanish_table(results["ORFs"]), hide_index=True, width="stretch",
                  column_config={"id": "Registro", "frame": "Marco", "start": "Inicio",
                                 "end": "Fin", "protein": "Proteína", "longitud": "Longitud (aa)",

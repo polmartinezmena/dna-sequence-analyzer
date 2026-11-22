@@ -25,9 +25,9 @@ def quality(records, stats, error=None, *, comments=0):
             checks.append(("Error", f"{record.id} · Caracteres inválidos: {', '.join(invalid)}."))
         ambiguous = sum(base in "RYSWKMBDHVN" for base in bases)
         if ambiguous:
-            checks.append(("Aviso", f"{record.id} · {ambiguous} bases ambiguas."))
+            checks.append(("Aviso", f"{record.id} · {format_es(ambiguous)} bases ambiguas."))
         if item.gc_flag:
-            checks.append(("Aviso", f"{record.id} · GC extremo ({item.gc_percent:.1f} %)."))
+            checks.append(("Aviso", f"{record.id} · GC extremo ({format_es(item.gc_percent, 1, '%')})."))
     if comments:
         checks.append(("Aviso", f"se ignoraron {format_es(comments)} líneas de comentario antes del primer registro"))
     return checks or [("OK", "Muestra sin incidencias.")]

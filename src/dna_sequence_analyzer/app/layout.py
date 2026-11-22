@@ -8,6 +8,7 @@ from pathlib import Path
 import streamlit as st
 
 from dna_sequence_analyzer.lab import global_gc_percent, report, result_csv
+from dna_sequence_analyzer.orfs import export_orfs
 from dna_sequence_analyzer.ui_theme import format_es, stylesheet
 from dna_sequence_analyzer.web_input import (
     bundled_example_fasta, looks_like_fasta, parse_sequence_text, read_fasta_text, text_from_upload,
@@ -148,6 +149,13 @@ def sample_header(stats):
             if upload.button("Importar FASTA", key="importar-cabecera", icon=":material/upload:"):
                 st.session_state.import_mode = "Subir archivo"
             return export.popover("Exportar", type="primary", icon=":material/download:")
+
+
+def orf_downloads(exports, hits):
+    for kind, extension in (("fasta", "fasta"), ("gff", "gff3")):
+        label = f"ORFs {extension.upper()}"
+        if label not in exports:
+            exports[label] = (export_orfs(hits, kind), f"orfs.{extension}", "text/plain")
 
 
 def downloads(popover, metadata, checks, results, exports):
