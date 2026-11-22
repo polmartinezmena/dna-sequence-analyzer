@@ -11,8 +11,9 @@ from html import escape
 from dataclasses import asdict
 from hashlib import sha256
 from os import getenv
+from time import monotonic
 from urllib.parse import quote
-from dna_sequence_analyzer.blast import BlastOptions, search
+from dna_sequence_analyzer.blast import BlastOptions, search, session_wait_seconds
 from dna_sequence_analyzer.lab import quality, run_metadata, report, result_csv
 
 from dna_sequence_analyzer.plots import lab_template
@@ -244,13 +245,13 @@ def _tab_orfs(record, results, params, settings, active, template):
         return
     results["ORFs"] = [
         {"id": record.id, **asdict(hit), "longitud": len(hit.protein),
-         "Hebra": hit.strand.replace("-", "?"), "Posici?n del cod?n de inicio": hit.start_codon_position}
+         "Hebra": hit.strand.replace("-", "−"), "Posición del codón de inicio": hit.start_codon_position}
         for hit in hits
     ]
     st.dataframe(results["ORFs"], hide_index=True, width="stretch",
                  column_config={"id": "Registro", "frame": "Marco", "start": "Inicio",
                                 "end": "Fin", "protein": "Proteína", "longitud": "Longitud (aa)",
-                                "has_stop": "Parada", "start_codon": "Cod?n de inicio"})
+                                "has_stop": "Parada", "start_codon": "Codón de inicio"})
     import plotly.graph_objects as go
 
     figure = go.Figure()
@@ -283,6 +284,7 @@ def _tab_blast(record, results, params, settings, active):
             database = st.selectbox("Base de datos", databases)
             evalue = st.number_input("Valor E máximo", min_value=0.000000001, value=0.01, format="%.9g")
             max_hits = st.number_input("Máximo de coincidencias", min_value=1, value=20)
+            megablast = program == "blastn" and st.checkbox("MegaBLAST", value=True)
             timeout = st.number_input("Tiempo máximo (s)", min_value=1, value=300)
         query = str(record.seq)
         label = record.id
@@ -301,8 +303,17 @@ def _tab_blast(record, results, params, settings, active):
         if not email:
             st.info("Configura NCBI_EMAIL antes de iniciar el servidor para activar BLAST remoto.")
         confirmed = st.checkbox("La consulta es pública y autorizo enviarla a NCBI.")
-        if st.button("Lanzar BLAST", type="primary", disabled=not confirmed or not email):
-            options = BlastOptions(program, database, evalue, max_hits)
+        maximum, units = (10_000, "nt") if program == "blastn" else (2_000, "aa")
+        oversized = len("".join(query.split())) > maximum
+        if oversized:
+            st.error(f"La consulta supera el máximo de {format_es(maximum, unit=units)} para {program}.")
+        wait = session_wait_seconds(st.session_state.get("last_blast_search"), monotonic())
+        if wait:
+            st.info(f"Faltan {format_es(wait, unit='s')} para la próxima búsqueda BLAST.")
+            st.button("Actualizar espera")
+        if st.button("Lanzar BLAST", type="primary", disabled=not confirmed or not email or oversized or bool(wait)):
+            options = BlastOptions(program, database, evalue, max_hits, megablast)
+            st.session_state.last_blast_search = monotonic()
             with st.status("Preparando consulta…", expanded=True) as status:
                 try:
                     hits = search(query, options, email=email, timeout=timeout, progress=status.write)
@@ -313,7 +324,7 @@ def _tab_blast(record, results, params, settings, active):
                 status.update(label="Consulta completada", state="complete", expanded=False)
             saved = (key, {"Consulta BLAST": label, "Programa BLAST": program,
                            "Base de datos BLAST": database, "Valor E máximo": evalue,
-                           "Máximo de coincidencias": max_hits}, [asdict(hit) for hit in hits])
+                           "Máximo de coincidencias": max_hits, "MegaBLAST": megablast if program == "blastn" else None}, [asdict(hit) for hit in hits])
             st.session_state.blast_result = saved
     if saved is None or saved[0] != key:
         return

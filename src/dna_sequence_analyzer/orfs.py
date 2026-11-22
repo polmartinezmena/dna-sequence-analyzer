@@ -100,8 +100,8 @@ def export_orfs(records: list[tuple[str, ORF]], kind: str) -> str:
     elif kind == "csv":
         writer = csv.writer(output, lineterminator="\n")
         writer.writerow(("id", "frame", "start_1based", "end_inclusive", "length_aa", "protein", "has_stop",
-                         "Hebra", "Cod?n de inicio", "Posici?n del cod?n de inicio"))
-        writer.writerows((name, hit.frame, hit.start, hit.end, len(hit.protein), hit.protein, hit.has_stop, hit.strand.replace("-", "?"),
+                         "Hebra", "Codón de inicio", "Posición del codón de inicio"))
+        writer.writerows((name, hit.frame, hit.start, hit.end, len(hit.protein), hit.protein, hit.has_stop, hit.strand.replace("-", "−"),
                           hit.start_codon, hit.start_codon_position)
                          for name, hit in records)
     else:

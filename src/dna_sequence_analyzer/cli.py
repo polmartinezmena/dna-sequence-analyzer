@@ -49,7 +49,7 @@ def orfs(
     nested: bool = typer.Option(False, "--nested", help="Incluye inicios anidados en el mismo marco."),
     allow_no_stop: bool = typer.Option(False, "--allow-no-stop", help="Incluye ORFs abiertos al final."),
     alt_starts: bool = typer.Option(
-        False, "--alt-starts", help="Acepta tambi?n los codones de inicio alternativos de la tabla NCBI elegida"
+        False, "--alt-starts", help="Acepta también los codones de inicio alternativos de la tabla NCBI elegida"
     ),
     output_format: str = typer.Option("csv", "--format", help="fasta, csv o gff."),
 ) -> None:
@@ -72,15 +72,16 @@ def blast(
     db: str | None = typer.Option(None, "--db", help="nt, nr o refseq_rna según el programa."),
     evalue: float = typer.Option(0.01, "--evalue", help="Valor E máximo."),
     max_hits: int = typer.Option(20, "--max-hits", min=1, help="Número máximo de coincidencias."),
+    megablast: bool = typer.Option(True, "--megablast/--no-megablast", help="Activa MegaBLAST para blastn."),
     timeout: float = typer.Option(300, "--timeout", help="Tiempo máximo en segundos."),
 ) -> None:
     """Envía un FASTA público a NCBI y escribe los resultados como CSV."""
     try:
         records = read_fasta(fasta_file)
         if len(records) != 1:
-            raise ValueError("La consulta BLAST requiere un ?nico registro FASTA.")
+            raise ValueError("La consulta BLAST requiere un único registro FASTA.")
         record = records[0]
-        options = BlastOptions(program, db or ("nr" if program == "blastp" else "nt"), evalue, max_hits)
+        options = BlastOptions(program, db or ("nr" if program == "blastp" else "nt"), evalue, max_hits, megablast)
         hits = search(str(record.seq), options, email=os.getenv("NCBI_EMAIL"), timeout=timeout)
     except (OSError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)

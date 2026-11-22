@@ -29,6 +29,7 @@ class BlastOptions:
     database: str = "nt"
     evalue: float = 0.01
     max_hits: int = 20
+    megablast: bool = True
 
     def __post_init__(self):
         if self.database not in _DATABASES.get(self.program, ()):
@@ -45,6 +46,11 @@ class BlastHit:
     coverage: float
     evalue: float
     bitscore: float
+
+
+def session_wait_seconds(last_search: float | None, now: float) -> int:
+    """Seconds remaining before another search can start in the same session."""
+    return 0 if last_search is None else max(0, math.ceil(300 - (now - last_search)))
 
 
 def _request(params, timeout):
@@ -96,7 +102,10 @@ def _parse_report(response, max_hits):
 def _cache_path(query, options, cache_dir):
     default = Path(os.environ.get("LOCALAPPDATA", Path.home() / ".cache"))
     directory = Path(cache_dir) if cache_dir is not None else default / _TOOL / "blast"
-    payload = json.dumps(["v1", query, asdict(options)], sort_keys=True)
+    fields = asdict(options)
+    if options.program == "blastp":
+        del fields["megablast"]
+    payload = json.dumps(["v1", query, fields], sort_keys=True)
     return directory / (sha256(payload.encode()).hexdigest() + ".json")
 
 
@@ -186,10 +195,13 @@ def _search_locked(query, options, email, path, deadline, queue, progress):
 
     if progress:
         progress("Enviando la consulta a NCBI.")
-    response = send({
+    submission = {
         "CMD": "Put", "QUERY": query, "PROGRAM": options.program, "DATABASE": options.database,
         "EXPECT": options.evalue, "HITLIST_SIZE": options.max_hits,
-    })
+    }
+    if options.program == "blastn" and options.megablast:
+        submission["MEGABLAST"] = "on"
+    response = send(submission)
     rid = _field(response, "RID")
     if not rid:
         raise ValueError("NCBI no devolvió un identificador de búsqueda.")

@@ -136,6 +136,6 @@ def test_fasta_preamble_does_not_reach_biopython(tmp_path):
         records, comments = read_fasta_text(annotated)
         for parsed in (records, read_fasta(path), parse_sequence_text(annotated)):
             assert [(r.id, r.seq) for r in parsed] == [(r.id, r.seq) for r in expected]
-    assert ("Aviso", "se ignoraron 2 l?neas de comentario antes del primer registro") in quality(
+    assert ("Aviso", "se ignoraron 2 líneas de comentario antes del primer registro") in quality(
         records, describe_records(records), comments=comments
     )
