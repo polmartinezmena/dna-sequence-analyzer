@@ -49,6 +49,15 @@ Verás también un candidato de 106 aa que empieza en 72 y termina en 392.
 Al desactivar **Incluir ORFs anidados** (o usar `--exclude-nested` en la CLI)
 queda el de 110 aa. Esa diferencia muestra el efecto del filtro de inicios.
 
+### Resumir resultados BLAST guardados
+
+`uv run dna-analyzer blast-report resultados.xml` convierte un informe
+BLAST XML clásico (BLAST+ `-outfmt 5`) a CSV. Para el formato tabular estándar
+(`-outfmt 6`), usa `uv run dna-analyzer blast-report resultados.tsv --tabular`.
+El comando elige el segmento con menor E-value por pareja de secuencias
+y usa el bit score para desempatar. La identidad corresponde a ese segmento
+alineado, no a la secuencia completa. Esta lectura es local.
+
 ### Entrada FASTA
 
 Un archivo FASTA guarda una o varias secuencias. Cada una empieza por
