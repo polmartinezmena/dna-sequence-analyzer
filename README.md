@@ -506,9 +506,15 @@ carpeta, el comando muestra el motivo en español y termina con código 1.
 
 [Abre DNA Sequence Analyzer en GitHub Pages](https://polmartinezmena.github.io/dna-sequence-analyzer/).
 
-La web procesa FASTA en el navegador y ofrece visor regional, perfiles de
-GC y CpG, sesgo GC, traducción, ORFs y Tm. Puedes importar un archivo,
-arrastrarlo o pegar el texto. **Exportar** descarga el resumen CSV, las
+La web procesa FASTA en el navegador. El menú lateral reúne **Secuencia**,
+**Traducción**, **ORFs** y **BLAST** y se pliega en pantallas estrechas.
+En **Secuencia**, el mapa muestra los ORFs por hebra y el perfil de GC por
+ventanas. Selecciona un ORF en el mapa o indica el inicio y el fin inclusivos
+en **Región**. Puedes copiar la selección, obtener su complemento inverso
+o traducirla desde la primera base de la hebra activa.
+
+Puedes importar un archivo, arrastrarlo o pegar el texto. **Exportar**
+descarga el resumen CSV, las
 proteínas de los ORFs en FASTA, sus coordenadas en GFF3 o un informe HTML.
 Tras la primera visita, la PWA guarda los recursos y el ejemplo para
 trabajar sin conexión.
@@ -537,6 +543,7 @@ pruebas de paridad con Node.js 22 o para regenerar las referencias:
 
 ```powershell
 node --test web/tests
+uv run --no-sync pytest
 uv run --no-sync python scripts/export_parity_fixtures.py
 ```
 

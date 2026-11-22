@@ -1,5 +1,10 @@
 # Historial de cambios
 
+## Próximos cambios
+
+- Rediseño de la web estática con menú lateral plegable, métricas del registro y control de calidad junto al visor.
+- Mapa de ORFs por hebra y perfil de GC conectados al selector de región. El visor permite copiar, complementar o traducir la región activa.
+
 ## 1.0.0 (sin publicar)
 
 - Los ORFs empiezan por ATG por defecto y omiten los inicios anidados salvo que se soliciten. La CLI y la app permiten activar los inicios alternativos y muestran el codón, la hebra y la posición de inicio.
