@@ -40,7 +40,7 @@ def load_sample(text, name, source):
         ),
         table_sample=st.session_state.get("table_sample", 0) + 1,
     )
-    for key in ("orf_result", "blast_result"):
+    for key in ("orf_result", "blast_result", "blast_error"):
         st.session_state.pop(key, None)
 
 

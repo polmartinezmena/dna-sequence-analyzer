@@ -26,47 +26,55 @@ def render(record, item, stats, checks, results, params, settings, exports):
         evalue = st.number_input("Valor E máximo", min_value=0.000000001, value=0.01, format="%.9g")
         max_hits = st.number_input("Máximo de coincidencias", min_value=1, value=20)
         megablast = program == "blastn" and st.checkbox("MegaBLAST", value=True)
-        timeout = st.number_input("Tiempo máximo (s)", min_value=1, value=300)
-    query = str(record.seq)
-    label = record.id
+        timeout = st.number_input("Tiempo máximo (s)", min_value=1, max_value=300, value=300)
+    query, label = str(record.seq), record.id
     if program == "blastp":
         orfs = st.session_state.get("orf_result")
         if not orfs or orfs[0] != key or not orfs[2]:
-            st.info("Busca primero los ORFs del registro activo.")
-            return
-        proteins = {
-            f"{hit.frame} · {format_es(hit.start)}–{format_es(hit.end)} · {format_es(len(hit.protein))} aa":
-            hit.protein for _, hit in orfs[2]
-        }
-        label = settings.selectbox("Proteína de un ORF", list(proteins))
-        query = proteins[label]
+            settings.info("Busca primero los ORFs del registro activo.")
+            query = None
+        else:
+            proteins = {
+                f"{hit.frame} · {format_es(hit.start)}–{format_es(hit.end)} · {format_es(len(hit.protein))} aa":
+                hit.protein for _, hit in orfs[2]
+            }
+            label = settings.selectbox("Proteína de un ORF", list(proteins))
+            query = proteins[label]
     email = getenv("NCBI_EMAIL")
     if not email:
-        st.info("Configura NCBI_EMAIL antes de iniciar el servidor para activar BLAST remoto.")
+        settings.info("Configura NCBI_EMAIL antes de iniciar el servidor para activar BLAST remoto.")
     confirmed = settings.checkbox("La consulta es pública y autorizo enviarla a NCBI.")
     maximum, units = (10_000, "nt") if program == "blastn" else (2_000, "aa")
-    oversized = len("".join(query.split())) > maximum
+    oversized = query is not None and len("".join(query.split())) > maximum
     if oversized:
-        st.error(f"La consulta supera el máximo de {format_es(maximum, unit=units)} para {program}.")
+        settings.error(f"La consulta supera el máximo de {format_es(maximum, unit=units)} para {program}.")
     wait = session_wait_seconds(st.session_state.get("last_blast_search"), monotonic())
     if wait:
         settings.info(f"Faltan {format_es(wait, unit='s')} para la próxima búsqueda BLAST.")
         settings.button("Actualizar espera")
-    if settings.button("Lanzar BLAST", key="lanzar-blast", type="primary", disabled=not confirmed or not email or oversized or bool(wait)):
+    can_launch = bool(query and confirmed and email and not oversized and not wait)
+    if settings.button("Lanzar BLAST", key="lanzar-blast", type="primary", disabled=not can_launch) and can_launch:
         options = BlastOptions(program, database, evalue, max_hits, megablast)
         st.session_state.last_blast_search = monotonic()
+        st.session_state.pop("blast_error", None)
         with st.status("Preparando consulta…", expanded=True) as status:
             try:
                 hits = search(query, options, email=email, timeout=timeout, progress=status.write)
             except (ValueError, OSError) as error:
                 status.update(label="La consulta BLAST falló", state="error")
-                st.error(str(error))
-                return
-            status.update(label="Consulta completada", state="complete", expanded=False)
-        saved = (key, {"Consulta BLAST": label, "Programa BLAST": program,
-                       "Base de datos BLAST": database, "Valor E máximo": evalue,
-                       "Máximo de coincidencias": max_hits, "MegaBLAST": megablast if program == "blastn" else None}, [asdict(hit) for hit in hits])
-        st.session_state.blast_result = saved
+                st.session_state.blast_error = key, str(error)
+            else:
+                status.update(label="Consulta completada", state="complete", expanded=False)
+                parameters = {
+                    "Consulta BLAST": label, "Programa BLAST": program, "Base de datos BLAST": database,
+                    "Valor E máximo": evalue, "Máximo de coincidencias": max_hits, "Tiempo máximo (s)": timeout,
+                    "MegaBLAST": megablast if program == "blastn" else None,
+                }
+                st.session_state.blast_result = key, parameters, [asdict(hit) for hit in hits]
+        st.rerun()
+    if error := st.session_state.get("blast_error"):
+        if error[0] == key:
+            st.error(error[1])
     if saved is None or saved[0] != key:
         return
     _, parameters, rows = saved

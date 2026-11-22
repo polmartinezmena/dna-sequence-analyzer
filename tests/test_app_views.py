@@ -99,3 +99,50 @@ def test_table_selection_changes_active_record(app):
     assert app.session_state["registro_activo"] == 0
     app.run()
     assert app.session_state["registro_activo"] == 0
+
+
+def test_blast_limits_block_forged_clicks(app, monkeypatch):
+    from time import monotonic
+
+    monkeypatch.setenv("NCBI_EMAIL", "test@example.org")
+    open_view(app, "BLAST")
+    next(box for box in app.checkbox if "autorizo" in box.label).check().run()
+    click = app.button(key="lanzar-blast")
+    assert not click.disabled
+    app.session_state["last_blast_search"] = monotonic()
+    click.click().run()
+    assert not app.exception
+    assert app.button(key="lanzar-blast").disabled
+    assert any("próxima búsqueda BLAST" in info.value for info in app.info)
+    assert "blast_result" not in app.session_state
+
+
+def test_oversized_blast_query(app, monkeypatch):
+    monkeypatch.setenv("NCBI_EMAIL", "test@example.org")
+    app.button(key="pegar-muestra").click().run()
+    app.text_area(key="texto-fasta").set_value(">larga\n" + "ACGT" * 2501)
+    app.button(key="cargar-muestra").click().run()
+    open_view(app, "BLAST")
+    assert app.button(key="lanzar-blast").disabled
+    assert any("10.000 nt" in error.value for error in app.error)
+
+
+def test_blast_result_and_cooldown_use_mocked_search(app, monkeypatch):
+    from dna_sequence_analyzer.app.views import blast as blast_view
+
+    calls = []
+
+    def fake_search(query, options, **kwargs):
+        calls.append(options)
+        return [blast.BlastHit("TEST.1", "Control", 97.5, 80, 1e-20, 200)]
+
+    monkeypatch.setenv("NCBI_EMAIL", "test@example.org")
+    monkeypatch.setattr(blast_view, "search", fake_search)
+    open_view(app, "BLAST")
+    next(box for box in app.checkbox if "autorizo" in box.label).check().run()
+    app.button(key="lanzar-blast").click().run()
+    assert not app.exception
+    assert len(calls) == 1 and calls[0].megablast
+    assert app.button(key="lanzar-blast").disabled
+    assert app.dataframe[0].value.iloc[0]["accession"] == "TEST.1"
+    assert app.session_state["metadata"]["MegaBLAST"] is True
