@@ -9,6 +9,7 @@ from __future__ import annotations
 import streamlit as st
 from html import escape
 from dataclasses import asdict
+from hashlib import sha256
 from dna_sequence_analyzer.lab import quality, run_metadata, report, result_csv
 
 from dna_sequence_analyzer.plots import lab_template
@@ -16,6 +17,7 @@ from dna_sequence_analyzer.ui_theme import ACCENT, SERIES_2, format_es, styleshe
 from dna_sequence_analyzer.viewer import render_sequence_html
 from dna_sequence_analyzer.translate import TABLES, transcribe, translate_frames
 from dna_sequence_analyzer.gc import GC_HIGH_PERCENT, GC_LOW_PERCENT
+from dna_sequence_analyzer.orfs import export_orfs, find_orfs
 from dna_sequence_analyzer.tm import OLIGO_GUIDANCE_LENGTH, MeltingConditions, melting_temperature
 from dna_sequence_analyzer.web_input import (
     bundled_example_fasta,
@@ -31,7 +33,7 @@ from dna_sequence_analyzer.windows import (
     skew_windows_for_records,
 )
 
-_MODULES = ("Resumen", "Secuencia y traducción", "Exportar", "Aprende")
+_MODULES = ("Resumen", "Secuencia y traducción", "ORFs", "Exportar", "Aprende")
 _TYPE = {"dna": "ADN", "rna": "ARN", "mixed": "Mixto", "unspecified": "Indeterminado"}
 
 
@@ -112,6 +114,8 @@ def main() -> None:
         _tab_tm(results, params)
     with tabs["Secuencia y traducción"]:
         _tab_traduccion(record, results, params, sidebar_parameters, active)
+    with tabs["ORFs"]:
+        _tab_orfs(record, results, params, sidebar_parameters, active, template)
     with tabs["Aprende"]:
         _tab_aprende()
     metadata = run_metadata(records, params, st.session_state.get("metadata"))
@@ -137,6 +141,12 @@ def _exports(metadata, checks, results):
             selected = st.selectbox("Tabla", available)
             st.download_button("Descargar CSV", result_csv(results[selected]),
                                f"{selected}-{run}.csv", "text/csv")
+    if results.get("ORFs"):
+        with st.sidebar.popover("Archivos de ORFs"):
+            for kind, extension in (("fasta", "fasta"), ("gff", "gff3")):
+                hits = st.session_state.orf_result[2]
+                st.download_button(f"Descargar {extension.upper()}", export_orfs(hits, kind),
+                                   f"orfs-{run}.{extension}", "text/plain")
     st.sidebar.html(f'<div class="lab-run">ID de ejecución {escape(run[:12])}<br>'
                     f'SHA-256 {escape(metadata["SHA-256 de la muestra"][:12])}</div>')
 
@@ -185,6 +195,68 @@ def _tab_traduccion(record, results, params, settings, active):
         st.download_button("Descargar proteína FASTA", fasta, "proteina.fasta", "text/plain")
     else:
         st.caption("El marco no tiene codones completos.")
+
+
+def _orf_key(record):
+    return record.id, sha256(str(record.seq).encode()).hexdigest()
+
+
+def _tab_orfs(record, results, params, settings, active, template):
+    if record is None or not len(record.seq):
+        st.info("Selecciona un registro con bases para buscar ORFs.")
+        return
+    st.caption("Localiza tramos candidatos a codificar proteínas en los seis marcos.")
+    key = _orf_key(record)
+    saved = st.session_state.get("orf_result")
+    if active == "ORFs":
+        with settings:
+            min_aa = st.number_input("Longitud mínima (aa)", min_value=1, value=30)
+            table = st.selectbox("Código genético de ORFs (NCBI)", TABLES)
+            nested = st.checkbox("Incluir inicios anidados")
+            terminal = st.checkbox("Incluir ORFs sin parada")
+        if st.button("Buscar ORFs", type="primary"):
+            try:
+                hits = find_orfs(str(record.seq), table=table, min_aa=min_aa,
+                                 include_nested=nested, allow_no_stop=terminal)
+            except ValueError as error:
+                st.error(str(error))
+                return
+            parameters = {"Tabla de ORFs": table, "Longitud mínima de ORF (aa)": min_aa,
+                          "Inicios anidados": nested, "ORFs sin parada": terminal}
+            saved = (key, parameters, [(record.id, hit) for hit in hits])
+            st.session_state.orf_result = saved
+    if saved is None or saved[0] != key:
+        st.info("Ajusta los parámetros y pulsa Buscar ORFs.")
+        return
+    params.update(saved[1])
+    hits = [hit for _, hit in saved[2]]
+    if not hits:
+        st.info("No se encontraron ORFs con estos parámetros.")
+        return
+    results["ORFs"] = [
+        {"id": record.id, **asdict(hit), "longitud": len(hit.protein)}
+        for hit in hits
+    ]
+    st.dataframe(results["ORFs"], hide_index=True, width="stretch",
+                 column_config={"id": "Registro", "frame": "Marco", "start": "Inicio",
+                                "end": "Fin", "protein": "Proteína", "longitud": "Longitud (aa)",
+                                "has_stop": "Parada"})
+    import plotly.graph_objects as go
+
+    figure = go.Figure()
+    for strand, color in (("+", ACCENT), ("-", SERIES_2)):
+        coordinates, frames = [], []
+        for hit in hits:
+            if hit.frame.startswith(strand):
+                coordinates.extend((hit.start, hit.end, None))
+                frames.extend((hit.frame, hit.frame, None))
+        figure.add_scatter(x=coordinates, y=frames, mode="lines+markers",
+                           name=f"Hebra {strand}", line={"color": color, "width": 5})
+    figure.update_layout(template=template, xaxis_title="Posición (base 1)",
+                         yaxis={"categoryorder": "array",
+                                "categoryarray": ["-3", "-2", "-1", "+3", "+2", "+1"]},
+                         hovermode="closest")
+    st.plotly_chart(figure, theme=None, width="stretch")
 
 
 def _sidebar_records():

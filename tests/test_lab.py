@@ -33,10 +33,18 @@ def test_app_example():
     assert not app.exception
     app.get("button_group")[0].set_value("Ejemplo").run(timeout=30)
     assert not app.exception
-    assert [tab.label for tab in app.tabs] == ["Resumen", "Secuencia y traducción", "Exportar", "Aprende"]
+    assert [tab.label for tab in app.tabs] == [
+        "Resumen", "Secuencia y traducción", "ORFs", "Exportar", "Aprende",
+    ]
     assert app.dataframe
     for tab in app.tabs:
         app.session_state["modulo_activo"] = tab.label
         app.run(timeout=30)
         assert not app.exception
     assert any('<pre class="lab-protein">' in entry.proto.body for entry in app.get("html"))
+    app.session_state["modulo_activo"] = "ORFs"
+    app.run()
+    next(field for field in app.number_input if field.label == "Longitud mínima (aa)").set_value(1)
+    next(button for button in app.button if button.label == "Buscar ORFs").click().run()
+    assert not app.exception
+    assert app.session_state["orf_result"][2]

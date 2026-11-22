@@ -17,6 +17,7 @@ import typer
 
 from dna_sequence_analyzer import __version__
 from dna_sequence_analyzer.gc import GC_HIGH_PERCENT, GC_LOW_PERCENT, analyze_fasta, read_fasta
+from dna_sequence_analyzer.orfs import export_orfs, find_orfs
 from dna_sequence_analyzer.translate import translate_frames
 from dna_sequence_analyzer.plots import write_gc_window_plot, write_skew_plot
 from dna_sequence_analyzer.tm import (
@@ -36,6 +37,27 @@ app = typer.Typer(
         "Reads FASTA and reports GC content, window composition, GC skew, and oligo Tm."
     ),
 )
+
+
+@app.command("orfs")
+def orfs(
+    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="Archivo FASTA de nucleótidos."),
+    min_aa: int = typer.Option(30, "--min-aa", min=1, help="Longitud mínima en aminoácidos."),
+    table: int = typer.Option(1, "--table", help="Tabla del código genético de NCBI."),
+    nested: bool = typer.Option(False, "--nested", help="Incluye inicios anidados en el mismo marco."),
+    allow_no_stop: bool = typer.Option(False, "--allow-no-stop", help="Incluye ORFs abiertos al final."),
+    output_format: str = typer.Option("csv", "--format", help="fasta, csv o gff."),
+) -> None:
+    """Busca ORFs en las dos hebras y exporta coordenadas inclusivas desde 1."""
+    try:
+        hits = [(record.id, hit) for record in read_fasta(fasta_file) for hit in find_orfs(
+            str(record.seq), min_aa=min_aa, table=table, include_nested=nested,
+            allow_no_stop=allow_no_stop,
+        )]
+        typer.echo(export_orfs(hits, output_format), nl=False)
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
 
 
 def _version_callback(value: bool) -> None:
