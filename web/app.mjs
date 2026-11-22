@@ -1,5 +1,6 @@
-import {codes, orfs, parseFasta, reverseComplement, stats, transcribe, translate, windows, melt} from './core.mjs';
+import {codes, dna, orfs, parseFasta, reverseComplement, stats, transcribe, translate, windows, melt} from './core.mjs';
 import {exportSample} from './exports.mjs';
+import {blastUrl} from './blast.mjs';
 
 const $ = id => document.getElementById(id);
 const h = (tag, content, attrs = {}) => {
@@ -286,6 +287,46 @@ function meltForm(record, card) {
   form, result);
 }
 
+function blast(record, card) {
+  card.append(h('p', 'NCBI abre el formulario con tu consulta. Revisa los parámetros y pulsa BLAST allí. El navegador envía la secuencia a NCBI al abrir el enlace.'));
+  const sources = new Map([['record', {sequence: record.sequence, program: 'blastn'}]]);
+  const options = [h('option', 'Registro completo · blastn', {value: 'record'})];
+  try {
+    getOrfs(record).forEach((hit, index) => {
+      const key = String(index);
+      sources.set(key, {sequence: hit.protein, program: 'blastp'});
+      options.push(h('option', 'ORF ' + hit.frame + ' · ' + fmt(hit.start) + '–' + fmt(hit.end) +
+        ' · ' + fmt(hit.protein.length) + ' aa', {value: key}));
+    });
+  } catch (error) {
+    card.append(h('p', 'ORFs no disponibles: ' + error.message));
+  }
+  const select = h('select', options);
+  const action = h('div', undefined, {class: 'section-content'});
+  function update() {
+    const {sequence, program} = sources.get(select.value);
+    action.replaceChildren();
+    try {
+      const url = new URL(blastUrl(sequence, program));
+      if (!url.searchParams.has('QUERY')) {
+        const query = h('textarea', undefined, {rows: 4, readonly: '', class: 'mono'});
+        query.value = program === 'blastn' ? dna(sequence) : sequence;
+        query.addEventListener('focus', () => query.select());
+        action.append(h('p', 'La consulta supera el límite del enlace. Cópiala y pégala en NCBI.'),
+          h('label', ['Secuencia para copiar', query]));
+      }
+      action.append(h('a', 'Abrir NCBI BLAST ↗', {href: url.href, target: '_blank',
+        rel: 'noopener noreferrer', class: 'button primary blast-link'}));
+    } catch (error) {
+      action.append(h('p', error.message, {role: 'status'}));
+    }
+  }
+  select.addEventListener('change', update);
+  card.append(h('label', ['Consulta', select]), action);
+  update();
+}
+
+
 function renderView() {
   for (const page of Object.keys(pages)) {
     const button = $('nav-' + page);
@@ -300,7 +341,7 @@ function renderView() {
   content.replaceChildren(card);
   try {
     if (state.page === 'summary') summary(record, card);
-    if (state.page === 'blast') card.append(h('p', 'BLAST requiere conexión con NCBI.'));
+    if (state.page === 'blast') blast(record, card);
     if (state.page === 'translation') {
       card.append(tableSelect(), h('h3', 'ARN transcrito'), h('pre', transcribe(record.sequence), {class: 'mono'}));
       for (const frame of translate(record.sequence, state.table)) {

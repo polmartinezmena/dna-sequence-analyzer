@@ -118,3 +118,4 @@ dialog::backdrop {background:#171411a0}
   .metrics span {font-size:.64rem; letter-spacing:.04em}
   .lane {font-size:.78rem}
 }
+.blast-link {justify-self:start; text-decoration:none; display:inline-flex; align-items:center}
