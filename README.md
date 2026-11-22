@@ -1,14 +1,13 @@
 # dna-sequence-analyzer
 
 Herramienta de línea de comandos para analizar secuencias de ADN.
-Esta versión, la **0.6.0**, lee un archivo FASTA y, para cada secuencia,
+Esta versión, la **0.7.0**, lee un archivo FASTA y, para cada secuencia,
 dice cómo se llama, cuántos símbolos tiene, cuál es su contenido en GC
 y cuántas bases ambiguas lleva. También parte la secuencia en ventanas,
 calcula el sesgo GC y estima la temperatura de fusión de un oligo corto.
 
 El programa está pensado para instalarse con `pip` y usarse en cualquier
-ordenador. Las etapas siguientes (BLAST y publicación
-en PyPI) todavía no están hechas: la hoja de ruta está más abajo.
+ordenador. La app incorpora consultas BLASTn y la CLI resume informes guardados.
 
 Autor: Pol Martinez Mena, estudiante de Biotecnología en la UAB.
 
@@ -195,7 +194,7 @@ dna-analyzer --version
 ```
 
 ```text
-dna-analyzer 0.6.0
+dna-analyzer 0.7.0
 ```
 
 ## Uso
@@ -563,7 +562,11 @@ También puedes lanzarla con el archivo que usa Streamlit Cloud:
 streamlit run app/streamlit_app.py
 ```
 
-Las seis pestañas son **Resumen GC**, **GC por ventanas**, **GC skew**, **Tm de primers**, **Traducción** y **Aprende**. La Tm utiliza su propio oligo y sus concentraciones, independientemente de la muestra FASTA.
+Las pestañas incluyen composición, perfiles de GC, traducción, ORFs, Tm, guía y BLAST.
+Para habilitar BLAST, configura la variable de entorno `NCBI_EMAIL` con el correo de contacto del operador antes de iniciar Streamlit.
+En la pestaña BLAST puedes enviar una accesión pública o una secuencia pública no humana.
+La búsqueda devuelve un RID; pulsa **Consultar resultado** después de un minuto.
+Los resultados se reutilizan durante la sesión. [Guía del servicio NCBI](https://blast.ncbi.nlm.nih.gov/doc/blast-help/developerinfo.html).
 
 ### Publicarla gratis en Streamlit Community Cloud
 
@@ -687,9 +690,7 @@ en los seis marcos de la secuencia elegida.
 4. BLAST remoto contra NCBI.
 5. Línea de comandos pulida, README de publicación e instalación desde PyPI.
 
-BLAST y la publicación en PyPI siguen pendientes. La Tm no
-los sustituye: es un cálculo para oligos cortos, apoyado en el mismo
-lector de FASTA.
+La publicación en PyPI y el cambio de rama en Streamlit Cloud quedan pendientes.
 
 ## Qué he aprendido
 

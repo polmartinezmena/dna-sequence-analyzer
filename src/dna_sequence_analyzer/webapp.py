@@ -9,12 +9,14 @@ from __future__ import annotations
 import streamlit as st
 import plotly.graph_objects as go
 from html import escape
+import re
 from dataclasses import asdict
 from dna_sequence_analyzer.lab import quality, run_metadata, report, result_csv
 
 from dna_sequence_analyzer import __version__
 from dna_sequence_analyzer.translate import TABLES, transcribe, translate_frames
 from dna_sequence_analyzer.orfs import export_orfs, find_orfs
+from dna_sequence_analyzer.remote_blast import submit, retrieve
 from dna_sequence_analyzer.gc import GC_HIGH_PERCENT, GC_LOW_PERCENT
 from dna_sequence_analyzer.tm import OLIGO_GUIDANCE_LENGTH, MeltingConditions, melting_temperature
 from dna_sequence_analyzer.web_input import (
@@ -81,7 +83,7 @@ def main() -> None:
     params = {"Origen": st.session_state.source}
     results = {}
     tabs = st.tabs(
-        ["Composición", "GC por ventanas", "GC skew", "Traducción", "ORFs", "Tm de primers", "Guía"]
+        ["Composición", "GC por ventanas", "GC skew", "Traducción", "ORFs", "Tm de primers", "Guía", "BLAST"]
     )
     with tabs[0]:
         _tab_resumen(stats, results)
@@ -97,6 +99,8 @@ def main() -> None:
         _tab_tm(results, params)
     with tabs[6]:
         _tab_aprende()
+    with tabs[7]:
+        _tab_blast(records, results)
     st.sidebar.header("3. Resultados")
     metadata = run_metadata(records, params, st.session_state.get("metadata"))
     st.session_state.metadata = metadata
@@ -112,6 +116,50 @@ def main() -> None:
                                f"{selected}-{metadata['ID']}.csv", "text/csv")
     st.divider()
     st.caption(f"Pol Martinez Mena · [GitHub]({_REPO}) · Versión {__version__}")
+
+
+def _tab_blast(records, results):
+    st.subheader("Buscar secuencias similares")
+    source = st.radio("Consulta BLAST", ["Accesión pública", "Secuencia de la muestra"], horizontal=True)
+    if source == "Accesión pública":
+        query = st.text_input("Accesión de nucleótidos", placeholder="NM_000207.3").strip()
+        if query and not re.fullmatch(r"[A-Za-z]{1,6}_?[0-9]+(?:\.[0-9]+)?", query):
+            st.info("Introduce un identificador de nucleótidos con su número de accesión.")
+            return
+        confirmed = True
+    else:
+        if not records:
+            st.info("Carga una muestra para seleccionar un registro.")
+            return
+        record, _ = _choose_record(records, "blast")
+        query = str(record.seq)
+        confirmed = st.checkbox("Confirmo que esta secuencia es pública, no es material genómico humano y autorizo su envío a NCBI.")
+    st.caption("BLASTn compara la consulta con core_nt en NCBI. Se solicitan hasta 20 coincidencias.")
+    if not query:
+        return
+    searches = st.session_state.setdefault("blast_searches", {})
+    try:
+        if query not in searches:
+            if not st.button("Enviar consulta a NCBI", disabled=not confirmed):
+                return
+            searches[query] = {"job": submit(query), "hits": None}
+        search = searches[query]
+        job = search["job"]
+        st.caption(f"Identificador de búsqueda · {job.rid}")
+        if search["hits"] is None:
+            st.info("Consulta el resultado pasado un minuto. NCBI puede tardar varios minutos.")
+            if st.button("Consultar resultado"):
+                search["hits"] = retrieve(job)
+        if search["hits"] is not None:
+            if search["hits"]:
+                rows = [asdict(hit) for hit in search["hits"]]
+                st.dataframe(rows, hide_index=True)
+                results["BLAST"] = rows
+                st.caption("La identidad corresponde al segmento con menor E-value de cada coincidencia.")
+            else:
+                st.info("NCBI completó la búsqueda sin coincidencias.")
+    except (OSError, ValueError) as exc:
+        st.error(str(exc))
 
 
 @st.fragment
