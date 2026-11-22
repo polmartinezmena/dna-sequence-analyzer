@@ -1,6 +1,7 @@
-import {codes, dna, orfs, parseFasta, reverseComplement, stats, transcribe, translate, windows, melt} from './core.mjs';
+import {codes, dna, orfs, parseFasta, stats, transcribe, translate, windows, melt} from './core.mjs';
 import {exportSample} from './exports.mjs';
 import {blastUrl} from './blast.mjs';
+import {copyRegion, mapOrf, reverseRegion, translateRegion} from './viewer.mjs';
 
 const $ = id => document.getElementById(id);
 const h = (tag, content, attrs = {}) => {
@@ -12,12 +13,11 @@ const h = (tag, content, attrs = {}) => {
 const number = new Intl.NumberFormat('es-ES', {maximumFractionDigits: 2});
 const fmt = value => value == null ? '—' : number.format(value);
 const percent = value => value == null ? '—' : fmt(value) + ' %';
-const regionLimit = 500;
+
 const state = {name: '', records: [], stats: [], comments: 0, active: 0, page: 'viewer',
-  tab: 0, start: 1, end: 1, table: 1, orfOptions: {min_aa: 1}};
+  region: null, selectedOrf: null, table: 1, orfOptions: {min_aa: 1}};
 const pages = {
-  summary: ['Resumen', 'M3 3h8v8H3zM14 3h7v8h-7zM3 14h8v7H3zM14 14h7v7h-7z'],
-  viewer: ['Visor', 'M3 5h18v14H3zM7 5v14m5-14v14m5-14v14'],
+  viewer: ['Secuencia', 'M3 3h18v18H3zM12 3v18M3 12h18'],
   translation: ['Traducción', 'M3 7h8m-4-4v4m3 0c0 4-3 7-6 9m1-7c1 2 3 4 6 5m1 7 4-10 4 10m-7-3h6'],
   orfs: ['ORFs', 'M3 6h18M3 12h18M3 18h18M7 4v4m9 2v4m-6 2v4'],
   blast: ['BLAST', 'M16 16l5 5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z'],
@@ -35,6 +35,10 @@ for (const [page, [label, path]] of Object.entries(pages)) {
   const button = h('button', [icon, label], {type: 'button', id: 'nav-' + page});
   button.addEventListener('click', () => {
     state.page = page;
+    if (matchMedia('(max-width: 760px)').matches) {
+      setMenu(false);
+      $('menu-toggle').focus();
+    }
     renderView();
   });
   $('navigation').append(button);
@@ -46,40 +50,49 @@ function table(headers, rows) {
   return h('div', h('table', [head, body]), {class: 'table-scroll'});
 }
 
-function resetRegion() {
+function syncRegion() {
   const length = state.stats[state.active].length;
-  state.start = 1;
-  state.end = Math.min(120, length);
+  const {start, end} = state.region ?? {};
   const form = $('region');
-  form.elements.start.value = length ? state.start : '';
-  form.elements.end.value = length ? state.end : '';
+  form.elements.start.value = start ?? '';
+  form.elements.end.value = end ?? '';
   for (const field of [form.elements.start, form.elements.end, form.querySelector('button')]) {
     field.disabled = !length;
   }
   form.elements.start.max = length;
   form.elements.end.max = length;
-  $('region-status').textContent = '';
+  const clear = $('region-clear');
+  clear.hidden = !state.region;
+  $('region-status').textContent = state.region?.strand === '-' ? 'Hebra inversa' : '';
+}
+
+function applyRegion(start, end, strand = '+', selectedOrf = null) {
+  state.region = {start, end, strand};
+  state.selectedOrf = selectedOrf;
+  state.page = 'viewer';
+  syncRegion();
+  renderView();
 }
 
 function pickRecord(index) {
   state.active = index;
   $('record-select').value = index;
-  resetRegion();
-  renderSample();
+  const length = state.stats[index].length;
+  state.region = length ? {start: 1, end: Math.min(120, length), strand: '+'} : null;
+  state.selectedOrf = null;
+  $('sample-name').textContent = state.name;
+  syncRegion();
   renderView();
 }
 
-function renderSample() {
-  const total = key => state.stats.reduce((sum, item) => sum + item[key], 0);
-  const countable = total('unambiguous_bases');
-  const metrics = [
-    ['Registros', fmt(state.records.length)], ['Bases totales', fmt(total('length'))],
-    ['GC medio', countable ? percent(100 * total('gc_bases') / countable) : '—'],
-  ];
-  $('filename').textContent = $('sample-name').textContent = state.name;
-  $('metrics').replaceChildren(...metrics.map(([label, value]) => h('div', [h('span', label), h('strong', value)])));
+function renderSample(record, hits, orfError) {
   const current = state.stats[state.active];
-  const invalid = [...new Set(state.records[state.active].sequence.toUpperCase().replace(/[ACGTURYSWKMBDHVN]/g, ''))];
+  const tm = melt(record.sequence);
+  const metrics = [['Longitud', fmt(current.length) + ' pb'], ['GC', percent(current.gc_percent)],
+    ['Tm', tm === null ? '—' : fmt(tm) + ' °C'], ['ORFs', orfError ? '—' : fmt(hits.length)],
+    ['Ambiguas', fmt(current.ambiguous_bases)]];
+  $('metrics').replaceChildren(...metrics.map(([label, value]) => h('div', [h('span', label), h('strong', value)])));
+  const invalid = [...new Set(record.sequence.toUpperCase().replace(/[ACGTURYSWKMBDHVN]/g, ''))];
   const checks = [
     [true, fmt(state.records.length) + ' registros FASTA leídos'],
     [Boolean(current.length), current.length ? 'Registro con secuencia' : 'Registro vacío'],
@@ -89,26 +102,12 @@ function renderSample() {
       current.gc_flag === 'high-gc' ? 'GC alto (> 65 %)' : 'Sin valores extremos de GC'],
   ];
   if (state.comments) checks.push([true, fmt(state.comments) + ' comentarios de cabecera']);
+  if (tm !== null && current.length > 60) checks.push([false, 'Tm estimada con un modelo para oligos cortos']);
+  if (orfError) checks.push([false, orfError.message]);
   $('checks').replaceChildren(...checks.map(([ok, label]) => h('li', [
-    h('span', ok ? '✓' : '!', {class: ok ? '' : 'warn', 'aria-label': ok ? 'Correcto' : 'Aviso'}), label,
+    h('span', ok ? '✓' : '!', {'aria-label': ok ? 'Correcto' : 'Aviso'}), label,
   ])));
-  const details = [['Identificador', current.id || '(sin ID)'], ['Longitud', fmt(current.length) + ' pb'],
-    ['GC', percent(current.gc_percent)], ['Ambiguas', fmt(current.ambiguous_bases)]];
-  $('record-details').replaceChildren(...details.map(([key, value]) => h('div', [h('dt', key), h('dd', value)])));
-
-  const rows = state.stats.map((item, i) => {
-    const button = h('button', item.id || '(sin ID)', {type: 'button', 'aria-pressed': i === state.active});
-    button.addEventListener('click', () => {
-      pickRecord(i);
-      $('records').querySelectorAll('button')[i].focus();
-    });
-    return [button, fmt(item.length), percent(item.gc_percent), fmt(item.ambiguous_bases)];
-  });
-  const grid = table(['Identificador', 'Longitud (pb)', 'GC', 'Bases ambiguas'], rows);
-  grid.querySelectorAll('tbody tr')[state.active].setAttribute('data-selected', '');
-  $('records').replaceChildren(grid);
 }
-
 function load(text, name, raw = false) {
   let parsed;
   const stripped = text.trimStart();
@@ -120,7 +119,7 @@ function load(text, name, raw = false) {
     parsed = parseFasta(text);
   }
   if (!parsed.records.length) throw new Error('El archivo no contiene registros FASTA.');
-  Object.assign(state, parsed, {name, stats: parsed.records.map(stats), tab: 0});
+  Object.assign(state, parsed, {name, stats: parsed.records.map(stats)});
   const totals = new Map();
   for (const {id} of parsed.records) totals.set(id, (totals.get(id) ?? 0) + 1);
   const seen = new Map();
@@ -134,99 +133,190 @@ function load(text, name, raw = false) {
   pickRecord(0);
 }
 
-function chart(rows, key, label, range) {
-  const values = rows.map(row => row[key]).filter(value => value !== null);
-  if (!values.length) return h('p', 'Sin datos para ' + label + '.');
-  const [min, max] = range ?? [Math.min(0, ...values), Math.max(1, ...values)];
-  const height = 113;
-  const element = svg('svg', {viewBox: '0 0 600 132', class: 'chart', role: 'img', 'aria-label': label});
-  const first = rows[0].start;
-  const span = Math.max(1, rows.at(-1).start - first);
-  for (const [value, y] of [[max, 13], [(min + max) / 2, 57], [min, 101]]) {
-    element.append(svg('line', {x1: 44, x2: 574, y1: y, y2: y, class: 'grid'}));
-    const tick = svg('text', {x: 1, y: y + 4});
-    tick.textContent = fmt(value);
-    element.append(tick);
+function sequenceMap(record, hits) {
+  const length = record.sequence.length;
+  const left = 42;
+  const right = 660;
+  const x = position => left + (right - left) * (position - 1) / Math.max(1, length - 1);
+  const trackHeight = hits.length > 2 ? 24 : 32;
+  const chartTop = 64 + hits.length * trackHeight;
+  const chartBottom = chartTop + 82;
+  const height = chartBottom + 12;
+  const map = svg('svg', {viewBox: '0 0 680 ' + height, class: 'sequence-map',
+    role: 'group', 'aria-label': 'Mapa de posiciones, ORFs y GC por ventana'});
+  const line = (x1, y1, x2, y2, className) => svg('line', {x1, y1, x2, y2, class: className});
+  function label(value, attributes) {
+    const node = svg('text', attributes);
+    node.textContent = value;
+    return node;
   }
+
+  if (state.region) {
+    const start = x(state.region.start);
+    const width = x(state.region.end) - start;
+    map.append(svg('rect', {x: start, y: 29, width: Math.max(2, width),
+      height: chartBottom - 29, class: 'map-selection'}));
+  }
+  map.append(line(left, 29, right, 29, 'axis'));
+  const interval = 10 ** Math.floor(Math.log10(length));
+  const step = length / interval < 3 ? Math.max(1, Math.round(interval / 2)) : interval;
+  const ticks = [1];
+  for (let value = step; value < length; value += step) {
+    if (value - 1 > length * .065 && length - value > length * .065) ticks.push(value);
+  }
+  if (length > 1) ticks.push(length);
+  for (const value of ticks) {
+    map.append(line(x(value), 22, x(value), 29, 'axis'),
+      label(fmt(value), {x: x(value), y: 16, 'text-anchor': 'middle'}));
+  }
+
+  const principal = hits.reduce((best, hit) => !best || hit.protein.length > best.protein.length ? hit : best, null);
+  hits.forEach((hit, index) => {
+    const {from, to, strand, direction} = mapOrf(hit);
+    const y = 54 + index * trackHeight;
+    const tail = x(from);
+    const tip = x(to);
+    const arrowBase = tip + (direction === 'right' ? -1 : 1) * Math.min(10, Math.abs(tip - tail));
+    const caption = 'ORF ' + fmt(index + 1);
+    const active = state.selectedOrf
+      ? ['start', 'end', 'frame'].every(key => state.selectedOrf[key] === hit[key])
+      : principal === hit;
+    const group = svg('g', {class: 'orf-track' + (active ? ' active' : ''),
+      role: 'button', tabindex: 0, 'aria-label': caption + ', marco ' + hit.frame + ', ' + fmt(hit.start) + '–' + fmt(hit.end)});
+    const hitWidth = Math.max(38, Math.abs(tail - tip));
+    group.append(svg('rect', {x: (tail + tip - hitWidth) / 2, y: y - trackHeight + 5,
+      width: hitWidth, height: trackHeight, fill: 'transparent'}),
+      label(hit.frame, {x: 4, y: y + 4}), line(tail, y, tip, y, 'orf-line'),
+      svg('polygon', {points: tip + ',' + y + ' ' + arrowBase + ',' + (y - 5) + ' ' + arrowBase + ',' + (y + 5)}),
+      label(caption, {x: (tail + tip) / 2, y: y - 6, 'text-anchor': 'middle'}));
+    const choose = () => {
+      applyRegion(hit.start, hit.end, strand, hit);
+      document.querySelectorAll('.orf-track')[index].focus();
+    };
+    group.addEventListener('click', event => { event.stopPropagation(); choose(); });
+    group.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      choose();
+    });
+    map.append(group);
+  });
+
+  const width = Math.min(20, length);
+  const rows = windows([record], width, Math.max(1, Math.ceil(length / 650)));
+  const values = rows.flatMap(row => row.gc_percent === null ? [] : [row.gc_percent]);
+  const minimum = Math.max(0, Math.floor(Math.min(40, ...values) / 10) * 10);
+  const maximum = Math.min(100, Math.ceil(Math.max(70, ...values) / 10) * 10);
+  const y = value => chartBottom - (value - minimum) * 82 / (maximum - minimum);
+  for (let value = maximum; value >= minimum; value -= maximum - minimum > 50 ? 20 : 10) {
+    map.append(line(left, y(value), right, y(value), 'grid'), label(fmt(value) + '%', {x: 0, y: y(value) + 4}));
+  }
+  map.append(line(left, chartTop - 3, left, chartBottom + 3, 'axis'));
+  let connected = false;
   let path = '';
-  let started = false;
   for (const row of rows) {
-    const value = row[key];
-    if (value === null) { started = false; continue; }
-    const x = 44 + (row.start - first) * 530 / span;
-    const y = 101 - (value - min) * 88 / (max - min);
-    path += (started ? 'L' : 'M') + x + ',' + y;
-    if (!started) element.append(svg('circle', {cx: x, cy: y, r: 2, fill: 'currentColor'}));
-    started = true;
+    if (row.gc_percent === null) { connected = false; continue; }
+    const point = x((row.start + row.end) / 2) + ',' + y(row.gc_percent);
+    path += (connected ? 'L' : 'M') + point;
+    if (!connected) path += 'l.01,0';
+    connected = true;
   }
-  element.append(svg('path', {d: path, class: 'line'}));
-  for (const [position, x, anchor] of [[first, 44, 'start'], [rows.at(-1).start, 574, 'end']]) {
-    const tick = svg('text', {x, y: height + 12, 'text-anchor': anchor});
-    tick.textContent = fmt(position);
-    element.append(tick);
-  }
-  return element;
+  map.append(svg('path', {d: path, class: 'gc-line'}));
+  map.addEventListener('click', event => {
+    const at = new DOMPoint(event.clientX, event.clientY).matrixTransform(map.getScreenCTM().inverse()).x;
+    const position = Math.max(1, Math.min(length, 1 + Math.round((at - left) * (length - 1) / (right - left))));
+    applyRegion(position, position);
+  });
+  return map;
 }
 
-function viewer(record) {
-  const card = h('div', undefined, {class: 'viewer'});
-  const tablist = h('div', undefined, {class: 'tabs', role: 'tablist', 'aria-label': 'Vistas de secuencia'});
-  const tabs = ['Secuencia', 'Vista por tramos', 'Anotaciones'].map((label, index) => {
-    const button = h('button', label, {id: 'tab-' + index, role: 'tab', type: 'button',
-      'aria-selected': index === state.tab, 'aria-controls': 'viewer-panel', tabindex: index === state.tab ? 0 : -1});
-    button.addEventListener('click', () => {
-      state.tab = index;
-      renderView();
-      $('tab-' + index).focus();
-    });
-    button.addEventListener('keydown', event => {
-      const target = {ArrowLeft: (index + 2) % 3, ArrowRight: (index + 1) % 3, Home: 0, End: 2}[event.key];
-      if (target === undefined) return;
-      event.preventDefault();
-      tabs[target].click();
-    });
-    return button;
-  });
-  tablist.append(...tabs);
-  const panel = h('div', undefined, {id: 'viewer-panel', role: 'tabpanel', tabindex: '0',
-    'aria-labelledby': 'tab-' + state.tab, class: 'section-content'});
-  card.append(h('h2', 'Visor de secuencia'), tablist, panel);
-  if (!record.sequence.length) {
-    panel.append(h('p', 'El registro está vacío.'));
-    return card;
-  }
-  const sequence = record.sequence.slice(state.start - 1, state.end).toUpperCase();
-  panel.append(h('p', record.id + ' · ' + fmt(state.start) + '–' + fmt(state.end) + ' pb'));
-  try {
-    if (state.tab === 2) {
-      const hits = getOrfs(record).filter(hit => hit.start <= state.end && hit.end >= state.start);
-      panel.append(orfTable(hits));
-    } else if (state.tab === 1) {
-      panel.append(h('h3', 'Hebra directa 5′ → 3′'), h('pre', sequence, {class: 'mono'}),
-        h('h3', 'Complementaria inversa 5′ → 3′'), h('pre', reverseComplement(sequence), {class: 'mono'}));
-    } else {
-      const lines = h('div', undefined, {class: 'sequence', 'aria-label': 'Bases de la región'});
-      const columns = matchMedia('(max-width: 540px)').matches ? 12 : 24;
-      for (let pos = 0; pos < sequence.length; pos += columns) {
-        const start = state.start + pos;
-        const ruler = h('div', undefined, {class: 'lane ruler', style: '--columns:' + columns, 'aria-hidden': 'true'});
-        const lane = h('div', undefined, {class: 'lane', style: '--columns:' + columns});
-        for (let col = 0; col < columns && pos + col < sequence.length; col++) {
-          const base = sequence[pos + col];
-          ruler.append(h('span', col === 0 || (start + col) % 10 === 0 ? String(start + col) : ''));
-          lane.append(h('span', base, {class: 'tile', 'data-base': base, title: 'Base ' + fmt(start + col)}));
-        }
-        lines.append(ruler, lane);
+function viewer(record, hits, firstBase) {
+  const card = h('div', undefined, {class: 'card viewer'});
+  const length = record.sequence.length;
+  if (!length) return h('div', 'El registro está vacío.', {class: 'card padded'});
+  card.append(h('div', [h('h2', 'Mapa'), sequenceMap(record, hits)],
+    {class: 'map-panel', tabindex: 0, 'aria-label': 'Mapa de la secuencia'}));
+
+  const output = h('div', undefined, {class: 'action-output', role: 'status'});
+  const toolbar = h('div', undefined, {class: 'toolbar', role: 'group', 'aria-label': 'Acciones de secuencia'});
+  const result = (label, value) => {
+    const field = h('textarea', undefined, {rows: 2, readonly: '', class: 'mono'});
+    field.value = value;
+    output.replaceChildren(h('label', [label, field]));
+  };
+  const actions = [
+    ['Copiar', async () => {
+      const value = copyRegion(record.sequence, state.region);
+      try {
+        await navigator.clipboard.writeText(value);
+        output.textContent = 'Secuencia copiada.';
+      } catch {
+        result('Secuencia para copiar', value);
+        output.querySelector('textarea').select();
       }
-      const width = Math.min(20, sequence.length);
-      const rows = windows([{id: record.id, sequence}], width, 1);
-      for (const row of rows) row.start += state.start - 1;
-      const label = 'GC por posición (%) · ventana de ' + fmt(width) + ' pb';
-      panel.append(lines, h('h3', label), chart(rows, 'gc_percent', label, [0, 100]));
-    }
-  } catch (error) {
-    panel.append(h('p', error.message, {role: 'status'}));
+    }],
+    ['Complemento inverso', () => result('Complemento inverso', reverseRegion(record.sequence, state.region))],
+    ['Traducir', () => {
+      const {protein} = translateRegion(record.sequence, state.region, state.table);
+      result('Traducción desde la primera base de la hebra activa · tabla ' + fmt(state.table), protein);
+    }],
+  ];
+  for (const [label, action] of actions) {
+    const button = h('button', label, {type: 'button'});
+    button.addEventListener('click', async () => {
+      try { await action(); }
+      catch (error) { output.textContent = error.message; }
+    });
+    toolbar.append(button);
   }
+
+  const scroll = h('div', undefined, {class: 'sequence', tabindex: 0, 'aria-label': 'Visor de bases'});
+  const columns = matchMedia('(max-width: 540px)').matches ? 24
+    : matchMedia('(max-width: 1120px)').matches ? 36 : 60;
+  // Bound DOM size while keeping the selected interval reachable through the map and form.
+  const visibleBases = columns * 24;
+  const first = firstBase ?? Math.floor(((state.region?.start ?? 1) - 1) / visibleBases) * visibleBases;
+  const last = Math.min(length, first + visibleBases);
+  let selectedRow;
+  for (let pos = first; pos < last; pos += columns) {
+    const bases = h('span', undefined, {class: 'codons'});
+    for (let i = pos; i < Math.min(pos + columns, last); i += 3) {
+      const codon = h('span', undefined, {class: 'codon'});
+      for (let j = i; j < Math.min(i + 3, last); j++) {
+        const selected = state.region && j + 1 >= state.region.start && j + 1 <= state.region.end;
+        codon.append(h('span', record.sequence[j].toUpperCase(), {class: selected ? 'selected-base' : ''}));
+      }
+      bases.append(codon);
+    }
+    const row = h('div', [h('span', fmt(pos + 1), {class: 'position'}), bases], {class: 'sequence-row'});
+    if (state.region && pos < state.region.start && state.region.start <= pos + columns) selectedRow = row;
+    scroll.append(row);
+  }
+  const viewerPanel = h('div', [toolbar, output, scroll], {class: 'viewer-panel'});
+  if (first || last < length) {
+    const range = h('div', h('span', 'Bases ' + fmt(first + 1) + '–' + fmt(last) + ' de ' + fmt(length)),
+      {class: 'sequence-range'});
+    for (const [label, offset, unavailable] of [
+      ['Anteriores', Math.max(0, first - visibleBases), first === 0],
+      ['Siguientes', last, last === length],
+    ]) {
+      const button = h('button', label, {type: 'button'});
+      button.disabled = unavailable;
+      button.addEventListener('click', () => {
+        const next = viewer(record, hits, offset);
+        card.replaceWith(next);
+        next.querySelector('.sequence').focus();
+      });
+      range.append(button);
+    }
+    viewerPanel.append(range);
+  }
+  card.append(viewerPanel);
+  if (selectedRow) requestAnimationFrame(() => {
+    if (selectedRow.offsetTop + selectedRow.offsetHeight > scroll.clientHeight) {
+      scroll.scrollTop = selectedRow.offsetTop;
+    }
+  });
   return card;
 }
 
@@ -246,20 +336,6 @@ function tableSelect() {
   select.value = state.table;
   select.addEventListener('change', () => { state.table = Number(select.value); renderView(); $('content').querySelector('select').focus(); });
   return h('label', ['Tabla genética NCBI', select]);
-}
-
-function summary(record, card) {
-  const length = record.sequence.length;
-  if (!length) return card.append(h('p', 'El registro está vacío.'));
-  const width = Math.min(60, length);
-  const step = Math.max(1, Math.ceil(length / 600));
-  const rows = windows([record], width, step);
-  card.append(h('p', 'Ventana de ' + fmt(width) + ' pb · Paso de ' + fmt(step) + ' pb'));
-  for (const [key, label, bounds] of [['gc_percent', 'GC por posición (%)', [0, 100]],
-    ['cpg_oe', 'CpG observado / esperado'], ['gc_skew', 'Sesgo GC', [-1, 1]],
-    ['cumulative_skew', 'Sesgo GC acumulado']]) {
-    card.append(h('h3', label), chart(rows, key, label, bounds));
-  }
 }
 
 function blast(record, card) {
@@ -311,11 +387,16 @@ function renderView() {
   const record = state.records[state.active];
   const content = $('content');
   if (!record) return;
-  if (state.page === 'viewer') return content.replaceChildren(viewer(record));
-  const card = h('div', h('h2', pages[state.page][0]), {class: 'card section-content'});
+  let hits = [];
+  let orfError;
+  try { hits = getOrfs(record); }
+  catch (error) { orfError = error; }
+  renderSample(record, hits, orfError);
+  if (state.page === 'viewer') return content.replaceChildren(viewer(record, hits));
+  const card = h('div', h('h2', pages[state.page][0]), {class: 'card padded section-content'});
   content.replaceChildren(card);
   try {
-    if (state.page === 'summary') summary(record, card);
+
     if (state.page === 'blast') blast(record, card);
     if (state.page === 'translation') {
       card.append(tableSelect(), h('h3', 'ARN transcrito'), h('pre', transcribe(record.sequence), {class: 'mono'}));
@@ -358,34 +439,32 @@ $('region').addEventListener('submit', event => {
   event.preventDefault();
   const start = event.target.elements.start.valueAsNumber;
   const end = event.target.elements.end.valueAsNumber;
-  if (end < start || end - start + 1 > regionLimit) {
-    $('region-status').textContent = 'Elige una región de 1 a 500 bases con el fin igual o posterior al inicio.';
+  if (end < start) {
+    $('region-status').textContent = 'El fin debe ser igual o posterior al inicio.';
     return;
   }
-  Object.assign(state, {start, end, page: 'viewer'});
-  $('region-status').textContent = 'Región aplicada.';
+  applyRegion(start, end);
+});
+$('region-clear').addEventListener('click', () => {
+  state.region = null;
+  state.selectedOrf = null;
+  syncRegion();
   renderView();
+  $('region').elements.start.focus();
 });
-matchMedia('(max-width: 540px)').addEventListener('change', () => {
-  if (state.page === 'viewer') renderView();
-});
-
-const theme = $('theme');
-function setTheme(dark) {
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  theme.setAttribute('aria-pressed', dark);
-  theme.textContent = dark ? 'Tema claro' : 'Tema oscuro';
-  document.querySelector('meta[name="theme-color"]').content = dark ? '#171411' : '#F6F4EF';
+for (const rule of ['(max-width: 540px)', '(max-width: 1120px)']) {
+  matchMedia(rule).addEventListener('change', () => {
+    if (state.page === 'viewer') renderView();
+  });
 }
-let savedTheme;
-try { savedTheme = localStorage.getItem('dna-theme'); } catch {}
-setTheme(savedTheme ? savedTheme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches);
-theme.addEventListener('click', () => {
-  const dark = document.documentElement.dataset.theme !== 'dark';
-  setTheme(dark);
-  try { localStorage.setItem('dna-theme', dark ? 'dark' : 'light'); } catch {}
-});
 
+function setMenu(open) {
+  $('menu-toggle').setAttribute('aria-expanded', open);
+  $('sidebar-controls').classList.toggle('open', open);
+}
+$('menu-toggle').addEventListener('click', () => {
+  setMenu($('menu-toggle').getAttribute('aria-expanded') !== 'true');
+});
 const importDialog = $('import-dialog');
 $('import-open').addEventListener('click', () => {
   $('import-status').textContent = '';

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#F6F4EF">
+  <meta name="theme-color" content="#ffffff">
   <title>DNA Sequence Analyzer</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
@@ -13,51 +13,49 @@
 <body>
   <a class="skip" href="#main">Saltar al contenido</a>
   <aside class="sidebar">
-    <a class="brand" href="./">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2c0 10 12 10 12 20M18 2c0 10-12 10-12 20M7 5h10M7 19h10M9 9h6m-6 6h6"/></svg>
-      <span>DNA Sequence<br>Analyzer</span>
-    </a>
-    <section class="sample" aria-labelledby="sample-heading">
-      <h2 id="sample-heading">Muestra</h2>
-      <p id="sample-name">Cargando ejemplo…</p>
-      <label for="record-select">Registro activo</label>
-      <select id="record-select"></select>
-    </section>
-    <nav aria-label="Análisis" id="navigation"></nav>
-    <button id="theme" type="button" aria-pressed="false">Tema oscuro</button>
-  </aside>
-  <main id="main" tabindex="-1">
-    <header class="top">
-      <div><p class="eyebrow">Archivo FASTA</p><h1 id="filename">DNA Sequence Analyzer</h1></div>
-      <div class="actions">
+    <header class="sidebar-head">
+      <a class="brand" href="./">
+        <svg viewBox="0 0 24 40" aria-hidden="true"><path d="M5 2c0 10 14 10 14 18S5 28 5 38M19 2c0 10-14 10-14 18s14 8 14 18M6 5h12M8 9h8M7 15h10M5 20h14M7 25h10M8 31h8M6 35h12"/></svg>
+        <span>DNA Sequence Analyzer</span>
+      </a>
+      <button id="menu-toggle" type="button" aria-controls="sidebar-controls" aria-expanded="false">Menú</button>
+    </header>
+    <div id="sidebar-controls" class="sidebar-controls">
+      <section class="sample" aria-labelledby="sample-heading">
+        <h2 id="sample-heading">Archivo</h2>
+        <p id="sample-name">Cargando ejemplo…</p>
+        <select id="record-select" aria-label="Registro activo"></select>
+      </section>
+      <section aria-labelledby="tools-heading">
+        <h2 id="tools-heading">Herramientas</h2>
+        <nav aria-labelledby="tools-heading" id="navigation"></nav>
+      </section>
+      <div class="sidebar-actions">
         <button id="import-open" class="primary" type="button">Importar FASTA</button>
         <button id="export-open" type="button">Exportar</button>
       </div>
-    </header>
+    </div>
+  </aside>
+  <main id="main" tabindex="-1">
+    <section class="metrics" aria-label="Métricas del registro" id="metrics"></section>
     <p id="status" role="status"></p>
-    <section class="metrics" aria-label="Totales de la muestra" id="metrics"></section>
     <div class="workspace">
       <section id="content" aria-label="Análisis de la secuencia"></section>
-      <aside class="card quality" aria-labelledby="qc-heading">
-        <h2 id="qc-heading">Control de calidad</h2>
-        <ul id="checks" class="checks"></ul>
-        <h2>Registro seleccionado</h2>
-        <dl id="record-details"></dl>
-        <form id="region">
-          <h2>Región (1-based)</h2>
-          <div class="fields">
-            <label>Inicio <input name="start" type="number" min="1" required></label>
-            <label>Fin <input name="end" type="number" min="1" required></label>
-          </div>
-          <button type="submit">Aplicar</button>
+      <aside class="right-panel" aria-label="Región y control de calidad">
+        <form id="region" class="card padded">
+          <h2>Región</h2>
+          <label>Inicio <input name="start" type="number" min="1" required disabled></label>
+          <label>Fin <input name="end" type="number" min="1" required disabled></label>
+          <button class="primary" type="submit" disabled>Aplicar</button>
+          <button id="region-clear" type="button" hidden>Quitar selección</button>
           <p id="region-status" role="status"></p>
         </form>
+        <section class="card padded quality" aria-labelledby="qc-heading">
+          <h2 id="qc-heading">Control de calidad</h2>
+          <ul id="checks" class="checks"></ul>
+        </section>
       </aside>
     </div>
-    <section class="card" aria-labelledby="records-heading">
-      <h2 id="records-heading">Registros</h2>
-      <div id="records"></div>
-    </section>
   </main>
   <dialog id="import-dialog" aria-labelledby="import-heading">
     <form method="dialog" class="dialog-head"><h2 id="import-heading">Importar FASTA</h2><button aria-label="Cerrar">×</button></form>
