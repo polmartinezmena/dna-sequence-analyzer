@@ -463,7 +463,7 @@ def _tab_ventanas(record, results, params, window, step, template) -> None:
     for threshold in (GC_LOW_PERCENT, GC_HIGH_PERCENT):
         figure.add_hline(y=threshold, line_dash="dash", line_color="#8A94A6",
                          annotation_text=format_es(threshold, unit="%"))
-    st.plotly_chart(figure, theme=None, width="stretch", config={"locale": "es"})
+    st.plotly_chart(figure, theme=None, width="stretch")
 
 
 def _tab_skew(record, results, params, window, step, template) -> None:
@@ -509,7 +509,7 @@ def _tab_skew(record, results, params, window, step, template) -> None:
         xaxis_title="Inicio de la ventana (base 1)",
         yaxis_title="(G − C) / (G + C)",
     )
-    st.plotly_chart(skew_figure, theme=None, width="stretch", config={"locale": "es"})
+    st.plotly_chart(skew_figure, theme=None, width="stretch")
 
     cumulative_figure = go.Figure()
     cumulative_figure.add_trace(
@@ -531,7 +531,7 @@ def _tab_skew(record, results, params, window, step, template) -> None:
         yaxis_title="Suma acumulada",
         legend=dict(orientation="h"),
     )
-    st.plotly_chart(cumulative_figure, theme=None, width="stretch", config={"locale": "es"})
+    st.plotly_chart(cumulative_figure, theme=None, width="stretch")
 
 
 def _tab_tm(results, params) -> None:
