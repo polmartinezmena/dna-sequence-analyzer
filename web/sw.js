@@ -1,6 +1,6 @@
-const CACHE = 'dna-analyzer-v2';
+const CACHE = 'dna-analyzer-v3';
 const FILES = ['./', './index.html', './styles.css', './app.mjs', './core.mjs',
-  './melting.mjs', './reference.mjs', './exports.mjs', './blast.mjs', './manifest.webmanifest',
+  './melting.mjs', './reference.mjs', './exports.mjs', './viewer.mjs', './blast.mjs', './manifest.webmanifest',
   './icon.svg', './icon-192.png', './icon-512.png', './examples.fasta'];
 const urls = new Set(FILES.map(file => new URL(file, self.registration.scope).href));
 
