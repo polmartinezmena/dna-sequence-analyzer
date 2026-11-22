@@ -31,7 +31,12 @@ def test_app_example():
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app/streamlit_app.py"))
     app.run(timeout=30)
     assert not app.exception
-    app.button[0].click().run(timeout=30)
+    app.get("button_group")[0].set_value("Ejemplo").run(timeout=30)
     assert not app.exception
-    assert len(app.tabs) == 6
+    assert [tab.label for tab in app.tabs] == ["Resumen", "Secuencia y traducción", "Exportar", "Aprende"]
     assert app.dataframe
+    for tab in app.tabs:
+        app.session_state["modulo_activo"] = tab.label
+        app.run(timeout=30)
+        assert not app.exception
+    assert any('<pre class="lab-protein">' in entry.proto.body for entry in app.get("html"))

@@ -1,19 +1,21 @@
 [theme]
-primaryColor = "#266CA9"
-font = "sans serif"
+primaryColor = "#4C5BD4"
+baseFontSize = 14
 baseRadius = "small"
+font = "sans serif"
+codeFont = "IBM Plex Mono:https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
 
 [theme.light]
 backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F1F5F9"
-textColor = "#192F44"
-borderColor = "#CAD6E1"
+secondaryBackgroundColor = "#F6F7F9"
+borderColor = "#E2E6EC"
+textColor = "#141A23"
 
 [theme.dark]
-backgroundColor = "#142131"
-secondaryBackgroundColor = "#1E3043"
-textColor = "#E7EFF7"
-primaryColor = "#81B9EE"
+backgroundColor = "#0F1318"
+secondaryBackgroundColor = "#161B22"
+borderColor = "#2A313C"
+textColor = "#E6EAF0"
 
 [browser]
 gatherUsageStats = false
