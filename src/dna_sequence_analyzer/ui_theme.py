@@ -31,7 +31,7 @@ def spanish_table(rows, decimals=None):
     return styler
 
 
-def stylesheet(theme=None):
+def stylesheet(theme=None, *, active_view=None):
     """Build the same stylesheet for Streamlit and standalone HTML reports."""
     names = ("surface", "panel", "border", "text", "muted")
 
