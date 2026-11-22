@@ -39,13 +39,31 @@ _AMBER = "#AB792E"
 _INDIGO = "#7467AA"
 _REPO = "https://github.com/polmartinezmena/dna-sequence-analyzer"
 _STYLE = """<style>
-.block-container {max-width: 92rem; padding-top: clamp(3rem, 6vw, 5rem)}
+.block-container {max-width: 85rem; padding-top: 3.6rem}
 [data-testid="stMetricValue"] {font-variant-numeric: tabular-nums}
 [data-testid="stSidebar"] {border-inline-end: 1px solid var(--st-border-color)}
 [data-testid="stSidebar"] h2 {font-size:1.05rem}
-header.lab {border-bottom:1px solid var(--st-border-color); padding-bottom:1.5rem}
-.lab h1 {font-size:clamp(2rem, 5vw, 3.5rem); letter-spacing:-.035em; padding:0 0 .45rem}
-.lab p {margin:0; max-width:65ch}
+.lab {background:#183348;color:#f6fbff;padding:clamp(1.25rem,3vw,2.5rem);
+border-radius:12px;display:grid;grid-template-columns:1fr minmax(15rem,.85fr);
+align-items:center;gap:2rem}
+.lab h1 {color:inherit;font-size:clamp(1.8rem,3vw,2.9rem);letter-spacing:-.035em;
+line-height:1.05;margin:0;padding:0 0 .6rem}
+.lab p,.lab figure {margin:0}
+.lab p,.lab figcaption {color:#d0e1eb;font-size:.9rem}
+.lab figcaption {margin-bottom:.6rem;overflow-wrap:anywhere}
+.lab .bases {display:grid;grid-template-columns:repeat(12,1fr);gap:3px;max-width:29rem}
+.bases span {border-radius:2px;background:#e2e9ed;color:#172c3a;text-align:center;
+font:600 .86rem/1.65 ui-monospace,Consolas,monospace}
+.bases .base-A {background:#94dbc9}.bases .base-C {background:#a5c7ed}
+.bases .base-G {background:#f4ca8d}.bases .base-T,.bases .base-U {background:#d8bbdf}
+[data-testid="stMetric"] {border-top:1px solid var(--st-border-color);padding-top:.55rem}
+@media(max-width:760px){
+  .lab{grid-template-columns:1fr;gap:1rem}
+  .block-container{padding-top:4.25rem}
+  .st-key-composition_metrics [data-testid="stHorizontalBlock"]{
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem 1rem}
+  .st-key-composition_metrics [data-testid="stColumn"]{width:100%;min-width:0}
+}
 [role="tablist"] {gap: clamp(.35rem, 1.5vw, 1.4rem)}
 [role="tab"] {min-height:44px}
 code.protein {overflow-wrap:anywhere}
@@ -56,13 +74,32 @@ def _example():
     st.session_state.source = "Ejemplo del repositorio"
 
 
+def _sample_header(records, source):
+    """Show a short, labelled preview of the first input record."""
+    track = ""
+    if records:
+        record = records[0]
+        fragment = str(record.seq[:24]).upper()
+        letters = "".join(
+            f'<span class="base-{base if base in "ACGTU" else "other"}">{escape(base)}</span>'
+            for base in fragment
+        )
+        if fragment:
+            track = (f'<figure><figcaption>{escape(record.id)} · bases 1–{len(fragment)}</figcaption>'
+                     f'<div class="bases" aria-label="{escape(fragment)}">{letters}</div></figure>')
+        count = len(records)
+        description = f'{escape(source)} · {count} {"registro" if count == 1 else "registros"}'
+    else:
+        description = "Selecciona una muestra para iniciar el análisis."
+    st.html(f'<header class="lab"><div><h1>Analizador de ADN</h1><p>{description}</p></div>{track}</header>')
+
+
 def main() -> None:
     st.set_page_config(page_title="Analizador de ADN", layout="wide")
     st.html(_STYLE)
-    st.html('<header class="lab"><h1>Analizador de ADN</h1>'
-            '<p>Composición, traducción y marcos de lectura de secuencias FASTA.</p></header>')
     records, error = _sidebar_records()
     records = records or []
+    _sample_header(records, st.session_state.source)
     stats = describe_records(records)
     checks = quality(records, stats, error) if records or error else [("Aviso", "Sin muestra cargada. Solo se evalúa el oligo.")]
     if not records and not error:
@@ -72,18 +109,18 @@ def main() -> None:
                      "También puedes explorar las herramientas con la muestra de ejemplo.")
             st.button("Cargar ejemplo", on_click=_example, type="primary")
     if records or error:
-        with st.expander("Control de calidad", expanded=True):
+        issues = sum(level != "OK" for level, _ in checks)
+        with st.expander("Control de calidad · " + (f"{issues} avisos o errores" if issues else "Sin incidencias"),
+                         expanded=bool(issues)):
             colors = {"OK": "green", "Aviso": "orange", "Error": "red"}
             for level, message in checks:
                 tag, detail = st.columns([1, 7])
                 tag.badge(level, color=colors[level])
                 detail.text(message)
-    st.sidebar.header("2. Parámetros")
-    st.sidebar.caption("Las concentraciones y el oligo se ajustan en Tm de primers.")
     params = {"Origen": st.session_state.source}
     results = {}
     tabs = st.tabs(
-        ["Composición", "GC por ventanas", "GC skew", "Traducción", "ORFs", "Tm de primers", "Guía", "BLAST"]
+        ["Composición", "GC por ventanas", "GC skew", "Traducción", "ORFs", "Tm de primers", "BLAST", "Guía"]
     )
     with tabs[0]:
         _tab_resumen(stats, results)
@@ -98,10 +135,10 @@ def main() -> None:
     with tabs[5]:
         _tab_tm(results, params)
     with tabs[6]:
-        _tab_aprende()
-    with tabs[7]:
         _tab_blast(records, results)
-    st.sidebar.header("3. Resultados")
+    with tabs[7]:
+        _tab_aprende()
+    st.sidebar.header("Exportación")
     metadata = run_metadata(records, params, st.session_state.get("metadata"))
     st.session_state.metadata = metadata
     with st.expander("Metadatos del análisis"):
@@ -224,7 +261,7 @@ def _tab_traduccion(records, results, params) -> None:
     if not records:
         st.info("Añade una secuencia para ver su traducción.")
         return
-    with st.sidebar.expander("Traducción"):
+    with st.expander("Secuencia y código genético"):
         record, _ = _choose_record(records, "traduccion")
         table = st.selectbox("Tabla del código genético (NCBI)", TABLES)
     if record is None:
@@ -254,14 +291,11 @@ def _tab_traduccion(records, results, params) -> None:
 
 def _sidebar_records():
     """Read the sidebar and return ``(records, error_message)``."""
-    st.sidebar.header("1. Cargar muestra")
-    st.sidebar.caption(
-        "GC y traducción usan esta muestra. La pestaña de Tm tiene su propio oligo."
-    )
+    st.sidebar.header("Muestra de trabajo")
     source = st.sidebar.radio(
         "Origen",
         ["Subir un FASTA", "Pegar texto", "Ejemplo del repositorio"],
-        index=0, key="source",
+        index=2, key="source",
     )
     try:
         if source == "Ejemplo del repositorio":
@@ -299,7 +333,8 @@ def _tab_resumen(stats, results) -> None:
     defined = [item.gc_percent for item in stats if item.gc_percent is not None]
     flagged = sum(1 for item in stats if item.gc_flag)
     mean_gc = sum(defined) / len(defined) if defined else None
-    cards = st.columns(4)
+    with st.container(key="composition_metrics"):
+        cards = st.columns(4)
     cards[0].metric("Secuencias", len(stats))
     cards[1].metric("Bases en total", f"{sum(item.length for item in stats):,}".replace(",", "."))
     cards[2].metric("GC medio", "—" if mean_gc is None else f"{mean_gc:.1f} %")
@@ -337,7 +372,8 @@ def _tab_resumen(stats, results) -> None:
         color_discrete_map={"": _BLUE, "low-gc": _AMBER, "high-gc": _INDIGO},
         labels={"id": "Secuencia", "aviso": "Aviso"},
     )
-    figure.update_layout(yaxis_title="GC %", xaxis_title="Secuencia", height=420, margin=dict(t=30))
+    figure.update_layout(yaxis_title="GC %", yaxis_range=[0, 100], xaxis_title="Secuencia",
+                         height=360, margin=dict(t=24, b=40))
     st.plotly_chart(figure, width="stretch")
 
 
@@ -350,7 +386,7 @@ def _tab_ventanas(records, results, params) -> None:
     if not records:
         st.info("Carga una secuencia en el panel de la izquierda.")
         return
-    with st.sidebar.expander("GC por ventanas"):
+    with st.expander("Secuencia, ventana y paso"):
         chosen, subset = _choose_record(records, "ventana")
         if chosen is None:
             return
@@ -408,7 +444,7 @@ def _tab_skew(records, results, params) -> None:
     if not records:
         st.info("Carga una secuencia en el panel de la izquierda.")
         return
-    with st.sidebar.expander("GC skew"):
+    with st.expander("Parámetros del sesgo GC"):
         chosen, subset = _choose_record(records, "sesgo")
         if chosen is None:
             return

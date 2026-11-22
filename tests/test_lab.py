@@ -31,7 +31,10 @@ def test_app_example():
     app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app/streamlit_app.py"))
     app.run(timeout=30)
     assert not app.exception
-    app.button[0].click().run(timeout=30)
+    assert app.radio(key="source").value == "Ejemplo del repositorio"
+    assert app.dataframe
+    app.radio(key="source").set_value("Subir un FASTA").run(timeout=30)
+    next(button for button in app.button if button.label == "Cargar ejemplo").click().run(timeout=30)
     assert not app.exception
     assert "ORFs" in [tab.label for tab in app.tabs]
     next(field for field in app.number_input if field.label == "Longitud mínima (aa)").set_value(1)
