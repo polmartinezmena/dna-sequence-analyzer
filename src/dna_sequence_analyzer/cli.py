@@ -48,13 +48,16 @@ def orfs(
     table: int = typer.Option(1, "--table", help="Tabla del código genético de NCBI."),
     nested: bool = typer.Option(False, "--nested", help="Incluye inicios anidados en el mismo marco."),
     allow_no_stop: bool = typer.Option(False, "--allow-no-stop", help="Incluye ORFs abiertos al final."),
+    alt_starts: bool = typer.Option(
+        False, "--alt-starts", help="Acepta tambi?n los codones de inicio alternativos de la tabla NCBI elegida"
+    ),
     output_format: str = typer.Option("csv", "--format", help="fasta, csv o gff."),
 ) -> None:
     """Busca ORFs en las dos hebras y exporta coordenadas inclusivas desde 1."""
     try:
         hits = [(record.id, hit) for record in read_fasta(fasta_file) for hit in find_orfs(
             str(record.seq), min_aa=min_aa, table=table, include_nested=nested,
-            allow_no_stop=allow_no_stop,
+            allow_no_stop=allow_no_stop, alternative_starts=alt_starts,
         )]
         typer.echo(export_orfs(hits, output_format), nl=False)
     except (OSError, ValueError) as exc:

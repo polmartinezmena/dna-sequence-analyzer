@@ -22,6 +22,15 @@ class ORF:
     end: int
     protein: str
     has_stop: bool = True
+    start_codon: str = "ATG"
+
+    @property
+    def strand(self) -> str:
+        return self.frame[0]
+
+    @property
+    def start_codon_position(self) -> int:
+        return self.start if self.strand == "+" else self.end
 
 
 def find_orfs(
@@ -29,8 +38,8 @@ def find_orfs(
     *,
     table: int = 1,
     min_aa: int = 1,
-    alternative_starts: bool = True,
-    include_nested: bool = True,
+    alternative_starts: bool = False,
+    include_nested: bool = False,
     allow_no_stop: bool = False,
 ) -> list[ORF]:
     """Find candidates in all six frames using Biopython genetic codes."""
@@ -64,7 +73,7 @@ def find_orfs(
                     end = pos + 3 if has_stop else pos
                     protein = "M" + str(strand[start + 3:pos].translate(table=table))
                     left, right = (start, end) if positive else (size - end, size - start)
-                    hits.append(ORF(frame, left + 1, right, protein, has_stop))
+                    hits.append(ORF(frame, left + 1, right, protein, has_stop, str(strand[start:start + 3])))
                 pending.clear()
             elif codon in starts and (include_nested or not pending):
                 pending.append(pos)
@@ -90,8 +99,10 @@ def export_orfs(records: list[tuple[str, ORF]], kind: str) -> str:
             )
     elif kind == "csv":
         writer = csv.writer(output, lineterminator="\n")
-        writer.writerow(("id", "frame", "start_1based", "end_inclusive", "length_aa", "protein", "has_stop"))
-        writer.writerows((name, hit.frame, hit.start, hit.end, len(hit.protein), hit.protein, hit.has_stop)
+        writer.writerow(("id", "frame", "start_1based", "end_inclusive", "length_aa", "protein", "has_stop",
+                         "Hebra", "Cod?n de inicio", "Posici?n del cod?n de inicio"))
+        writer.writerows((name, hit.frame, hit.start, hit.end, len(hit.protein), hit.protein, hit.has_stop, hit.strand.replace("-", "?"),
+                          hit.start_codon, hit.start_codon_position)
                          for name, hit in records)
     else:
         raise ValueError(f"Formato desconocido: {kind}")

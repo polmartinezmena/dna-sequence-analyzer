@@ -218,16 +218,18 @@ def _tab_orfs(record, results, params, settings, active, template):
             min_aa = st.number_input("Longitud mínima (aa)", min_value=1, value=30)
             table = st.selectbox("Código genético de ORFs (NCBI)", TABLES)
             nested = st.checkbox("Incluir inicios anidados")
+            alternative = st.checkbox("Inicios alternativos de la tabla NCBI")
             terminal = st.checkbox("Incluir ORFs sin parada")
         if st.button("Buscar ORFs", type="primary"):
             try:
                 hits = find_orfs(str(record.seq), table=table, min_aa=min_aa,
-                                 include_nested=nested, allow_no_stop=terminal)
+                                 include_nested=nested, allow_no_stop=terminal,
+                                 alternative_starts=alternative)
             except ValueError as error:
                 st.error(str(error))
                 return
             parameters = {"Tabla de ORFs": table, "Longitud mínima de ORF (aa)": min_aa,
-                          "Inicios anidados": nested, "ORFs sin parada": terminal}
+                          "Inicios alternativos": alternative, "Inicios anidados": nested, "ORFs sin parada": terminal}
             saved = (key, parameters, [(record.id, hit) for hit in hits])
             st.session_state.orf_result = saved
     if saved is None or saved[0] != key:
@@ -239,13 +241,14 @@ def _tab_orfs(record, results, params, settings, active, template):
         st.info("No se encontraron ORFs con estos parámetros.")
         return
     results["ORFs"] = [
-        {"id": record.id, **asdict(hit), "longitud": len(hit.protein)}
+        {"id": record.id, **asdict(hit), "longitud": len(hit.protein),
+         "Hebra": hit.strand.replace("-", "?"), "Posici?n del cod?n de inicio": hit.start_codon_position}
         for hit in hits
     ]
     st.dataframe(results["ORFs"], hide_index=True, width="stretch",
                  column_config={"id": "Registro", "frame": "Marco", "start": "Inicio",
                                 "end": "Fin", "protein": "Proteína", "longitud": "Longitud (aa)",
-                                "has_stop": "Parada"})
+                                "has_stop": "Parada", "start_codon": "Cod?n de inicio"})
     import plotly.graph_objects as go
 
     figure = go.Figure()
