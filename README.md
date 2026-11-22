@@ -665,6 +665,21 @@ incluye candidatos que alcanzan el final sin parada, usando solo codones
 completos. Las coordenadas empiezan en 1, incluyen ambos extremos y siempre
 se refieren a la secuencia original, también en la hebra reversa.
 
+**Ejemplo reproducible.** En el FASTA de ejemplo, el transcrito de la insulina
+`NM_000207.3` tiene un ORF de 110 aa entre 60 y 392 en el marco `+3` y otro
+de 49 aa entre 206 y 355 en el marco `-3`. El primer intervalo abarca 333
+nucleótidos: 330 codifican los aminoácidos y 3 forman el codón de parada.
+
+```powershell
+dna-analyzer orfs data/examples.fasta --min-aa 30 --table 1 --format csv |
+    ConvertFrom-Csv |
+    Where-Object { $_.id -eq 'NM_000207.3' } |
+    Format-Table frame, start_1based, end_inclusive, length_aa
+```
+
+Con `--nested` aparece también un ORF de 106 aa entre 72 y 392 en `+3`,
+con un inicio ATG posterior y el mismo codón de parada.
+
 Para BLAST, configura `NCBI_EMAIL` en el entorno y usa un FASTA público con
 un solo registro. `blastn` usa `nt` o `refseq_rna`. Para una proteína, por ejemplo
 un ORF exportado como FASTA, usa `blastp` con `nr`.
@@ -682,6 +697,14 @@ La identidad se calcula en el mejor alineamiento local y la cobertura suma
 el intervalo cubierto por todos los alineamientos del resultado, sin duplicar
 las posiciones solapadas. La caché usa un hash de la consulta y sus parámetros.
 El servicio es remoto. Envía únicamente secuencias públicas.
+
+### Resumir informes BLAST guardados
+
+`dna-analyzer blast-report resultados.xml` convierte un informe BLAST XML
+clásico (BLAST+ `-outfmt 5`) a CSV. Para el formato tabular estándar
+(`-outfmt 6`), usa `dna-analyzer blast-report resultados.tsv --tabular`.
+El comando conserva el alineamiento de menor valor E por consulta y sujeto,
+y desempata por mayor puntuación en bits.
 
 ## Referencias
 

@@ -17,7 +17,7 @@ from typing import TextIO
 import typer
 
 from dna_sequence_analyzer import __version__
-from dna_sequence_analyzer.blast import BlastOptions, search
+from dna_sequence_analyzer.blast import BlastOptions, search, summarize_blast
 from dna_sequence_analyzer.gc import GC_HIGH_PERCENT, GC_LOW_PERCENT, analyze_fasta, read_fasta
 from dna_sequence_analyzer.orfs import export_orfs, find_orfs
 from dna_sequence_analyzer.translate import translate_frames
@@ -90,6 +90,25 @@ def blast(
     writer.writerow(("accession", "description", "identity_percent", "coverage_percent", "evalue", "bitscore"))
     writer.writerows((hit.accession, hit.description, hit.identity, hit.coverage, hit.evalue,
                       hit.bitscore) for hit in hits)
+
+
+@app.command("blast-report")
+def blast_report(
+    report_file: Path = typer.Argument(..., metavar="REPORT"),
+    tabular: bool = typer.Option(False, "--tabular", help="Lee BLAST+ outfmt 6 estándar."),
+) -> None:
+    """Resume un informe BLAST guardado como CSV."""
+    try:
+        with report_file.open(encoding="utf-8") as handle:
+            hits = summarize_blast(handle, "blast-tab" if tabular else "blast-xml")
+    except (OSError, ValueError, SyntaxError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    writer = csv.writer(sys.stdout, lineterminator="\n")
+    writer.writerow(("query", "subject", "aligned_columns", "identity_percent", "evalue", "bit_score"))
+    for hit in hits:
+        writer.writerow((hit.query, hit.subject, hit.aligned_columns, f"{hit.identity_percent:.2f}",
+                         hit.evalue, hit.bit_score))
 
 
 def _version_callback(value: bool) -> None:
