@@ -76,7 +76,7 @@ def test_directory_is_a_clear_error(tmp_path: Path) -> None:
     result = runner.invoke(app, ["gc", str(tmp_path)])
 
     assert result.exit_code == 1
-    assert "not a file" in result.stderr
+    assert "no es un archivo" in result.stderr
 
 
 def test_missing_file_is_a_clear_error(tmp_path: Path) -> None:
@@ -86,7 +86,7 @@ def test_missing_file_is_a_clear_error(tmp_path: Path) -> None:
 
     assert result.exit_code == 1
     assert "Error:" in result.stderr
-    assert "not found" in result.stderr
+    assert "No se encontró" in result.stderr
 
 
 def test_empty_file_is_a_clear_error(tmp_path: Path) -> None:
@@ -96,7 +96,7 @@ def test_empty_file_is_a_clear_error(tmp_path: Path) -> None:
     result = runner.invoke(app, ["gc", str(fasta)])
 
     assert result.exit_code == 1
-    assert "empty" in result.stderr
+    assert "está vacío" in result.stderr
 
 
 def test_invalid_fasta_is_a_clear_error(tmp_path: Path) -> None:
@@ -161,16 +161,16 @@ def test_tm_requires_a_file_or_a_sequence(tmp_path: Path) -> None:
     both = runner.invoke(app, ["tm", str(tmp_path / "x.fasta"), "--sequence", "ATGC"])
 
     assert missing.exit_code == 1
-    assert "FASTA file or --sequence" in missing.stderr
+    assert "archivo FASTA o --sequence" in missing.stderr
     assert both.exit_code == 1
-    assert "not both" in both.stderr
+    assert "única entrada" in both.stderr
 
 
 def test_tm_missing_file_mentions_sequence_option(tmp_path: Path) -> None:
     result = runner.invoke(app, ["tm", str(tmp_path / "missing.fasta")])
 
     assert result.exit_code == 1
-    assert "not found" in result.stderr
+    assert "No se encontró" in result.stderr
     assert "--sequence" in result.stderr
 
 
@@ -286,7 +286,7 @@ def test_skew_plot_writes_a_png(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert png.is_file()
     assert png.stat().st_size > 0
-    assert f"Wrote {png}" in result.stderr
+    assert f"Archivo guardado en {png}" in result.stderr
 
 
 def test_help_lists_the_tm_command() -> None:

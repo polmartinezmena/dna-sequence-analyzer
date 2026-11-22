@@ -238,10 +238,10 @@ def tm(
 
     Pasa un FASTA o usa --sequence para una secuencia individual."""
     if fasta_file is None and sequence is None:
-        typer.echo("Error: pass a FASTA file or --sequence.", err=True)
+        typer.echo("Error: Indica un archivo FASTA o --sequence.", err=True)
         raise typer.Exit(code=1)
     if fasta_file is not None and sequence is not None:
-        typer.echo("Error: pass a FASTA file or --sequence, not both.", err=True)
+        typer.echo("Error: Indica un archivo FASTA o --sequence como única entrada.", err=True)
         raise typer.Exit(code=1)
     try:
         conditions = MeltingConditions(
@@ -395,13 +395,13 @@ def web(
     """Abre la app local en el navegador. Requiere el extra web."""
     if importlib.util.find_spec("streamlit") is None:
         typer.echo(
-            'Error: the web app needs Streamlit. Install it with: pip install -e ".[web]"',
+            'Error: La app web requiere Streamlit. Instálalo con pip install -e ".[web]"',
             err=True,
         )
         raise typer.Exit(code=1)
     entry = streamlit_entrypoint()
     if not entry.is_file():
-        typer.echo(f"Error: cannot find the web app at {entry}.", err=True)
+        typer.echo(f"Error: No se encontró la app web en {entry}.", err=True)
         raise typer.Exit(code=1)
     raise typer.Exit(subprocess.call(web_launch_command(port)))
 
@@ -471,7 +471,7 @@ def _maybe_plot(path: Path | None, writer) -> None:
     except (ImportError, ValueError, OSError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
-    typer.echo(f"Wrote {path}", err=True)
+    typer.echo(f"Archivo guardado en {path}", err=True)
 
 
 def _format_table(header: tuple[str, ...], rows: list[tuple[str, ...]]) -> str:

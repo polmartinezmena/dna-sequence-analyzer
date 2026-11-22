@@ -149,26 +149,26 @@ def test_all_ambiguous_record(tmp_path: Path) -> None:
 
 def test_missing_file_raises(tmp_path: Path) -> None:
     missing = tmp_path / "no-such-file.fasta"
-    with pytest.raises(FileNotFoundError, match="not found"):
+    with pytest.raises(FileNotFoundError, match="No se encontró"):
         analyze_fasta(missing)
 
 
 def test_directory_path_raises(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="not a file"):
+    with pytest.raises(ValueError, match="no es un archivo"):
         analyze_fasta(tmp_path)
 
 
 def test_empty_file_raises(tmp_path: Path) -> None:
     fasta = tmp_path / "empty.fasta"
     fasta.write_text("", encoding="utf-8")
-    with pytest.raises(ValueError, match="empty"):
+    with pytest.raises(ValueError, match="está vacío"):
         analyze_fasta(fasta)
 
 
 def test_whitespace_only_file_raises(tmp_path: Path) -> None:
     fasta = tmp_path / "blank.fasta"
     fasta.write_text("\n\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="header line"):
+    with pytest.raises(ValueError, match="cabecera"):
         analyze_fasta(fasta)
 
 
@@ -182,7 +182,7 @@ def test_file_without_a_header_raises(tmp_path: Path) -> None:
 def test_binary_file_raises(tmp_path: Path) -> None:
     fasta = tmp_path / "binary.fasta"
     fasta.write_bytes(b"\xff\xfe not text \x00")
-    with pytest.raises(ValueError, match="plain text|FASTA"):
+    with pytest.raises(ValueError, match="texto sin formato|FASTA"):
         analyze_fasta(fasta)
 
 

@@ -173,29 +173,29 @@ def read_fasta(path: str | Path) -> list[SeqRecord]:
     """
     fasta_path = Path(path)
     if not fasta_path.exists():
-        raise FileNotFoundError(f"FASTA file not found: {fasta_path}")
+        raise FileNotFoundError(f"No se encontró el archivo FASTA: {fasta_path}")
     if not fasta_path.is_file():
-        raise ValueError(f"Path is not a file: {fasta_path}")
+        raise ValueError(f"La ruta no es un archivo: {fasta_path}")
     if fasta_path.stat().st_size == 0:
-        raise ValueError(f"FASTA file is empty: {fasta_path}")
+        raise ValueError(f"El archivo FASTA está vacío: {fasta_path}")
 
     try:
         with fasta_path.open(encoding="utf-8-sig") as handle:
             records, _ = read_fasta_text(handle)
     except UnicodeDecodeError as exc:
         raise ValueError(
-            f"Could not read {fasta_path} as text. A FASTA file should be plain text."
+            f"No se pudo leer {fasta_path}. Un FASTA debe ser texto sin formato."
         ) from exc
     except ValueError as exc:
         raise ValueError(
-            f"Could not parse {fasta_path} as FASTA. "
-            "Each record must start with a '>' header line."
+            f"No se pudo leer {fasta_path} como FASTA. "
+            "Cada registro debe empezar con una cabecera '>'."
         ) from exc
 
     if not records:
         raise ValueError(
-            f"No FASTA records found in {fasta_path}. "
-            "Each record must start with a '>' header line followed by sequence."
+            f"No se encontraron registros FASTA en {fasta_path}. "
+            "Cada registro debe empezar con una cabecera '>' seguida de la secuencia."
         )
     return records
 
