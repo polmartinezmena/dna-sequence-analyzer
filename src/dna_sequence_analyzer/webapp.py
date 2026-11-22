@@ -10,6 +10,9 @@ import streamlit as st
 from html import escape
 from dataclasses import asdict
 from hashlib import sha256
+from os import getenv
+from urllib.parse import quote
+from dna_sequence_analyzer.blast import BlastOptions, search
 from dna_sequence_analyzer.lab import quality, run_metadata, report, result_csv
 
 from dna_sequence_analyzer.plots import lab_template
@@ -33,7 +36,7 @@ from dna_sequence_analyzer.windows import (
     skew_windows_for_records,
 )
 
-_MODULES = ("Resumen", "Secuencia y traducción", "ORFs", "Exportar", "Aprende")
+_MODULES = ("Resumen", "Secuencia y traducción", "ORFs", "BLAST", "Exportar", "Aprende")
 _TYPE = {"dna": "ADN", "rna": "ARN", "mixed": "Mixto", "unspecified": "Indeterminado"}
 
 
@@ -116,6 +119,8 @@ def main() -> None:
         _tab_traduccion(record, results, params, sidebar_parameters, active)
     with tabs["ORFs"]:
         _tab_orfs(record, results, params, sidebar_parameters, active, template)
+    with tabs["BLAST"]:
+        _tab_blast(record, results, params, sidebar_parameters, active)
     with tabs["Aprende"]:
         _tab_aprende()
     metadata = run_metadata(records, params, st.session_state.get("metadata"))
@@ -257,6 +262,78 @@ def _tab_orfs(record, results, params, settings, active, template):
                                 "categoryarray": ["-3", "-2", "-1", "+3", "+2", "+1"]},
                          hovermode="closest")
     st.plotly_chart(figure, theme=None, width="stretch")
+
+
+def _tab_blast(record, results, params, settings, active):
+    if record is None or not len(record.seq):
+        st.info("Selecciona un registro público con bases para consultar NCBI.")
+        return
+    key = _orf_key(record)
+    saved = st.session_state.get("blast_result")
+    if active == "BLAST":
+        st.caption("Compara el registro activo o una proteína de sus ORFs con secuencias de NCBI.")
+        with settings:
+            program = st.segmented_control("Programa", ["blastn", "blastp"], default="blastn") or "blastn"
+            databases = ["nt", "refseq_rna"] if program == "blastn" else ["nr"]
+            database = st.selectbox("Base de datos", databases)
+            evalue = st.number_input("Valor E máximo", min_value=0.000000001, value=0.01, format="%.9g")
+            max_hits = st.number_input("Máximo de coincidencias", min_value=1, value=20)
+            timeout = st.number_input("Tiempo máximo (s)", min_value=1, value=300)
+        query = str(record.seq)
+        label = record.id
+        if program == "blastp":
+            orfs = st.session_state.get("orf_result")
+            if not orfs or orfs[0] != key or not orfs[2]:
+                st.info("Busca primero los ORFs del registro activo.")
+                return
+            proteins = {
+                f"{hit.frame} · {format_es(hit.start)}–{format_es(hit.end)} · {format_es(len(hit.protein))} aa":
+                hit.protein for _, hit in orfs[2]
+            }
+            label = st.selectbox("Proteína de un ORF", list(proteins))
+            query = proteins[label]
+        email = getenv("NCBI_EMAIL")
+        if not email:
+            st.info("Configura NCBI_EMAIL antes de iniciar el servidor para activar BLAST remoto.")
+        confirmed = st.checkbox("La consulta es pública y autorizo enviarla a NCBI.")
+        if st.button("Lanzar BLAST", type="primary", disabled=not confirmed or not email):
+            options = BlastOptions(program, database, evalue, max_hits)
+            with st.status("Preparando consulta…", expanded=True) as status:
+                try:
+                    hits = search(query, options, email=email, timeout=timeout, progress=status.write)
+                except (ValueError, OSError) as error:
+                    status.update(label="La consulta BLAST falló", state="error")
+                    st.error(str(error))
+                    return
+                status.update(label="Consulta completada", state="complete", expanded=False)
+            saved = (key, {"Consulta BLAST": label, "Programa BLAST": program,
+                           "Base de datos BLAST": database, "Valor E máximo": evalue,
+                           "Máximo de coincidencias": max_hits}, [asdict(hit) for hit in hits])
+            st.session_state.blast_result = saved
+    if saved is None or saved[0] != key:
+        return
+    _, parameters, rows = saved
+    params.update(parameters)
+    results["BLAST"] = rows
+    if not rows:
+        st.info("NCBI no devolvió coincidencias.")
+        return
+    section = "protein" if parameters["Programa BLAST"] == "blastp" else "nuccore"
+    view = [
+        {**row, "acceso_ncbi": f"https://www.ncbi.nlm.nih.gov/{section}/{quote(row['accession'], safe='')}"}
+        for row in rows
+    ]
+    st.caption(f"Última consulta · {parameters['Programa BLAST']} · {parameters['Consulta BLAST']}")
+    st.dataframe(view, hide_index=True, width="stretch",
+                 column_order=("acceso_ncbi", "description", "identity", "coverage", "evalue", "bitscore"),
+                 column_config={
+                     "acceso_ncbi": st.column_config.LinkColumn("Accesión", display_text=r"/([^/]+)$"),
+                     "description": "Descripción",
+                     "identity": st.column_config.NumberColumn("Identidad (%)", format="localized"),
+                     "coverage": st.column_config.NumberColumn("Cobertura (%)", format="localized"),
+                     "evalue": st.column_config.NumberColumn("Valor E", format="scientific"),
+                     "bitscore": st.column_config.NumberColumn("Puntuación de bits", format="localized"),
+                 })
 
 
 def _sidebar_records():

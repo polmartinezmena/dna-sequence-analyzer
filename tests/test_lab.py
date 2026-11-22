@@ -34,7 +34,7 @@ def test_app_example():
     app.get("button_group")[0].set_value("Ejemplo").run(timeout=30)
     assert not app.exception
     assert [tab.label for tab in app.tabs] == [
-        "Resumen", "Secuencia y traducción", "ORFs", "Exportar", "Aprende",
+        "Resumen", "Secuencia y traducción", "ORFs", "BLAST", "Exportar", "Aprende",
     ]
     assert app.dataframe
     for tab in app.tabs:

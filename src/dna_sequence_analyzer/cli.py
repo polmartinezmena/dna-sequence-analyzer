@@ -8,6 +8,7 @@ Later stages will add more commands.
 
 import csv
 import importlib.util
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -16,6 +17,7 @@ from typing import TextIO
 import typer
 
 from dna_sequence_analyzer import __version__
+from dna_sequence_analyzer.blast import BlastOptions, search
 from dna_sequence_analyzer.gc import GC_HIGH_PERCENT, GC_LOW_PERCENT, analyze_fasta, read_fasta
 from dna_sequence_analyzer.orfs import export_orfs, find_orfs
 from dna_sequence_analyzer.translate import translate_frames
@@ -58,6 +60,32 @@ def orfs(
     except (OSError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from exc
+
+
+@app.command("blast")
+def blast(
+    fasta_file: Path = typer.Argument(..., metavar="FASTA", help="Un registro FASTA público."),
+    program: str = typer.Option("blastn", "--program", help="blastn para nucleótidos; blastp para proteínas."),
+    db: str | None = typer.Option(None, "--db", help="nt, nr o refseq_rna según el programa."),
+    evalue: float = typer.Option(0.01, "--evalue", help="Valor E máximo."),
+    max_hits: int = typer.Option(20, "--max-hits", min=1, help="Número máximo de coincidencias."),
+    timeout: float = typer.Option(300, "--timeout", help="Tiempo máximo en segundos."),
+) -> None:
+    """Envía un FASTA público a NCBI y escribe los resultados como CSV."""
+    from Bio import SeqIO
+
+    try:
+        with fasta_file.open(encoding="utf-8") as handle:
+            record = SeqIO.read(handle, "fasta")
+        options = BlastOptions(program, db or ("nr" if program == "blastp" else "nt"), evalue, max_hits)
+        hits = search(str(record.seq), options, email=os.getenv("NCBI_EMAIL"), timeout=timeout)
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    writer = csv.writer(sys.stdout, lineterminator="\n")
+    writer.writerow(("accession", "description", "identity_percent", "coverage_percent", "evalue", "bitscore"))
+    writer.writerows((hit.accession, hit.description, hit.identity, hit.coverage, hit.evalue,
+                      hit.bitscore) for hit in hits)
 
 
 def _version_callback(value: bool) -> None:

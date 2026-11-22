@@ -1,0 +1,6 @@
+{"BlastOutput2":[{"report":{"results":{"search":{
+  "query_len":100,
+  "hits":[{"description":[{"accession":"TEST.1","title":"Registro de control"}],
+    "hsps":[{"query_from":1,"query_to":60,"identity":54,"align_len":60,"evalue":1e-20,"bit_score":200},
+            {"query_from":80,"query_to":50,"identity":24,"align_len":31,"evalue":1e-5,"bit_score":80}]}]
+}}}}]}
