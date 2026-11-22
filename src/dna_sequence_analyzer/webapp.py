@@ -14,7 +14,6 @@ import re
 from dataclasses import asdict
 from dna_sequence_analyzer.lab import quality, run_metadata, report, result_csv
 
-from dna_sequence_analyzer import __version__
 from dna_sequence_analyzer.translate import TABLES, transcribe, translate_frames
 from dna_sequence_analyzer.orfs import export_orfs, find_orfs
 from dna_sequence_analyzer.remote_blast import submit, retrieve
@@ -38,24 +37,48 @@ from dna_sequence_analyzer.windows import (
 _BLUE = "#6654ce"
 _AMBER = "#aa641e"
 _INDIGO = "#a13776"
-_REPO = "https://github.com/polmartinezmena/dna-sequence-analyzer"
 _STYLE = '''<style>
-.block-container {max-width:100rem;padding:3.3rem clamp(1rem,2.3vw,2rem) 2rem}
-.app-bar {display:flex;justify-content:space-between;align-items:center;gap:1rem;
-  background:#252a32;color:#f6f8fb;border-radius:7px;padding:.72rem 1rem}
-.app-bar strong {font-size:1.05rem;letter-spacing:-.025em}
-.app-bar a {font-size:.8rem;color:#d7dff0}
-[data-testid="stSidebar"] {border-right:1px solid #858da33b}
-[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {padding-top:3.2rem}
+.block-container {max-width:none;padding:3.4rem 1rem 1.1rem}
+[data-testid="stAppViewContainer"] > section {padding-top:0}
+[data-testid="stHeader"] {height:2.4rem;background:#252a32;color:#fff}
+[data-testid="stHeader"] button {color:#fff}
+.app-bar {position:fixed;z-index:1000000;inset:0 0 auto;height:2.4rem;padding-inline:3.45rem 1rem;
+  display:flex;align-items:center;gap:1.1rem;
+  background:#252a32;color:#fff;pointer-events:none}
+.app-bar strong {font-size:.91rem}
+.app-bar span {border-left:1px solid #667180;padding-left:1rem;font-size:.8rem;color:#dde4ef}
+[data-testid="stSidebar"] {width:235px;min-width:235px;max-width:235px;border-right:1px solid #cbd3e0}
+[data-testid="stSidebarHeader"] {background:#252a32}
+[data-testid="stSidebarHeader"] button {color:#fff}
+[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {padding:.8rem .85rem 1rem}
+[data-testid="stSidebar"] h2 {font-size:1.05rem;padding:0}
+[data-testid="stSidebar"] [role="radiogroup"] {gap:.12rem}
+[data-testid="stSidebar"] [role="radiogroup"] label {padding:.3rem .5rem;border-radius:4px}
+[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) {background:#b9b9f155}
+[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) p {font-weight:650}
+.st-key-tool_panels [role="tablist"] {display:none}
+.st-key-sample_toolbar {padding:.53rem .7rem;border:1px solid #cbd3e0;border-radius:6px;background:#848fac0c}
+.st-key-sample_toolbar [data-testid="stHorizontalBlock"] {align-items:center}
+.st-key-sample_toolbar [data-testid="stPopoverButton"] {min-height:2rem;padding:.18rem .65rem}
+.st-key-sample_toolbar [data-testid="stColumn"]:last-child [data-testid="stPopoverButton"] {
+  background:#3032a8;color:#fff;border-color:#3032a8}
+.sample-mast {display:flex;flex-wrap:wrap;align-items:center;gap:.3rem 1rem}
 .sample-mast h1 {font-size:1.25rem;padding:0;overflow-wrap:anywhere}
-.sample-mast p {font-size:.85rem;margin:.35rem 0 0;font-variant-numeric:tabular-nums}
+.sample-mast p {font-size:.78rem;margin:0;font-variant-numeric:tabular-nums}
+.sample-mast p span {display:inline-block;border-left:1px solid #cbd3e0;padding:0 .65rem}
 .st-key-sequence_instrument {background:#20252d;color:#f1f4fa;border:1px solid #343c48;
-  border-radius:8px;padding:1rem 1rem .35rem}
+  border-radius:6px;padding:.7rem .85rem .2rem}
 .st-key-sequence_plot {overflow-x:auto;min-width:0}
 .st-key-sequence_plot [data-testid="stPlotlyChart"] {min-width:650px}
+.st-key-sequence_instrument [role="tablist"] {display:flex;border-bottom:1px solid #626a78}
+.st-key-sequence_instrument [role="tab"] {color:#e2e8f4;min-height:2.15rem}
+.st-key-sequence_instrument [role="tab"][aria-selected="true"] {color:#fff;background:#3a4557}
 .sequence-view h2 {color:#f3f6fc;font:600 1.25rem/1.2 Consolas,monospace;
   padding:0;overflow-wrap:anywhere}
 .sequence-view p {color:#bec9d9;font-size:.82rem;margin:.35rem 0 0;overflow-wrap:anywhere}
+.st-key-record_inspector {min-height:29.3rem}
+.st-key-record_inspector hr {margin:.25rem 0}
+.st-key-record_inspector [data-testid="stForm"] {padding:.45rem}
 .st-key-record_inspector h3 {font-size:1rem;padding:.1rem 0 .35rem}
 .st-key-record_inspector [data-testid="stMarkdownContainer"] p {font-size:.86rem}
 .st-key-viewer_registry h3 {font-size:1rem;padding:.1rem 0 .35rem}
@@ -69,7 +92,10 @@ _STYLE = '''<style>
 [data-testid="stTabs"] [data-baseweb="tab-highlight"] {display:none}
 code.protein {overflow-wrap:anywhere}
 @media(max-width:760px) {
-  .block-container {padding-top:3.75rem}
+  .block-container {padding-top:3.1rem}
+  .app-bar {background:linear-gradient(90deg,transparent 3rem,#252a32 3rem)}
+  .app-bar span {display:none}
+  .st-key-record_inspector {min-height:auto}
   .st-key-composition_metrics [data-testid="stHorizontalBlock"] {
     display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem}
   .st-key-composition_metrics [data-testid="stColumn"] {width:100%;min-width:0}
@@ -89,7 +115,7 @@ def _region_figure(record, start, end):
     """Plot bases and GC windows against the same inclusive coordinates."""
     sequence = str(record.seq[start - 1:end]).upper()
     positions = list(range(start, end + 1))
-    base_size = min(16, max(6, 575 // len(positions)))
+    base_size = min(16, max(7, 575 // len(positions)))
     window = min(20, len(sequence))
     rows = gc_windows_for_records([record[start - 1:end]], window, min(4, window))
     figure = make_subplots(rows=2, cols=1, shared_xaxes=True,
@@ -110,12 +136,13 @@ def _region_figure(record, start, end):
         hovertemplate="%{customdata[0]}–%{customdata[1]} · GC %{y:.1f} %<extra></extra>",
     ), row=2, col=1)
     figure.update_xaxes(range=[start - .5, end + .5], gridcolor="#394350", zeroline=False)
-    figure.update_xaxes(side="top", showticklabels=True, row=1, col=1)
+    figure.update_xaxes(side="top", showticklabels=True, ticks="outside", ticklen=5,
+                        showline=True, linecolor="#a0acba", row=1, col=1)
     figure.update_xaxes(title_text="Posición (base)", row=2, col=1)
     figure.update_yaxes(visible=False, fixedrange=True, row=1, col=1)
     figure.update_yaxes(title_text="GC (%)", range=[0, 100], dtick=25, gridcolor="#394350",
                         fixedrange=True, row=2, col=1)
-    figure.update_layout(height=285, margin=dict(t=28, b=44, l=53, r=14),
+    figure.update_layout(height=290, margin=dict(t=28, b=44, l=53, r=14),
                          paper_bgcolor="#20252d", plot_bgcolor="#20252d",
                          font=dict(color="#d9e2f0"), showlegend=False, dragmode="pan")
     return figure, rows
@@ -145,7 +172,8 @@ def _tab_viewer(record, item, stats, labels, checks, params, results):
     with inspector, st.container(key="record_inspector", border=True):
         st.markdown("### Control de calidad")
         _quality_panel(checks)
-        st.markdown("### Registro activo")
+        st.markdown("---")
+        st.markdown("### Registro seleccionado")
         gc = "—" if item.gc_percent is None else f"{item.gc_percent:.2f} %"
         st.text(f"Longitud: {length:,} bases\nGC: {gc}\nBases ambiguas: {item.ambiguous_bases}")
         if length:
@@ -170,17 +198,27 @@ def _tab_viewer(record, item, stats, labels, checks, params, results):
         description = record.description.removeprefix(record.id).strip()
         if description:
             detail = f"{detail} · {description}"
-        st.html(f'<section class="sequence-view"><h2>{escape(record.id)}</h2>'
-                f'<p>{escape(detail)}</p></section>')
+        sequence_tab, windows_tab, annotation_tab = st.tabs(["Secuencia", "Vista por tramos", "Anotaciones"])
+        with sequence_tab:
+            st.html(f'<section class="sequence-view"><h2>{escape(record.id)}</h2>'
+                    f'<p>{escape(detail)}</p></section>')
         if length:
             figure, rows = _region_figure(record, start, end)
-            with st.container(key="sequence_plot"):
+            with sequence_tab, st.container(key="sequence_plot"):
                 st.plotly_chart(figure, theme=None, config={"displaylogo": False}, width="stretch")
             params["Región del visor"] = f"{record.id}: {start}–{end}"
             results["GC de la región"] = [
                 {**asdict(row), "start": start - 1 + row.start, "end": start - 1 + row.end}
                 for row in rows
             ]
+            with windows_tab:
+                st.dataframe(results["GC de la región"], hide_index=True,
+                             column_order=("start", "end", "gc_percent", "ambiguous_bases"),
+                             column_config={"start": "Desde", "end": "Hasta",
+                                            "gc_percent": "GC (%)", "ambiguous_bases": "Bases ambiguas"})
+        with annotation_tab:
+            annotation = escape(description or "El encabezado FASTA solo contiene el identificador.")
+            st.html(f'<section class="sequence-view"><p>{annotation}</p></section>')
     with st.container(key="viewer_registry", border=True):
         st.markdown("### Registros")
         _records_table(
@@ -192,11 +230,10 @@ def _tab_viewer(record, item, stats, labels, checks, params, results):
 def main() -> None:
     st.set_page_config(page_title="DNA Sequence Analyzer", layout="wide")
     st.html(_STYLE)
-    st.html(
-        f'<header class="app-bar"><strong>DNA Sequence Analyzer</strong>'
-        f'<a href="{_REPO}">GitHub · v{__version__}</a></header>'
-    )
-    sample, intake, export = st.columns([4, 1.35, 1.1], gap="small")
+    st.html('<header class="app-bar"><strong>DNA Sequence Analyzer</strong>'
+            '<span>Visor de secuencia</span></header>')
+    with st.container(key="sample_toolbar"):
+        sample, intake, export = st.columns([5, 1.35, 1.1], gap="small")
     with intake.popover("Importar FASTA", width="stretch"):
         records, error, filename = _read_records()
     records = records or []
@@ -210,7 +247,9 @@ def main() -> None:
             mean_gc = f"{sum(defined) / len(defined):.1f} %" if defined else "—"
             total = sum(item.length for item in stats)
             st.html(f'<section class="sample-mast"><h1>{escape(filename)}</h1>'
-                    f'<p>{len(records)} registros · {total:,} bases · GC medio {mean_gc}</p></section>')
+                    f'<p><span>Registros <b>{len(records)}</b></span>'
+                    f'<span>Bases totales <b>{total:,}</b></span>'
+                    f'<span>GC medio <b>{mean_gc}</b></span></p></section>')
         else:
             st.title("Importar secuencias")
     params = {"Origen": st.session_state.source}
@@ -222,13 +261,20 @@ def main() -> None:
         if st.session_state.get("viewer_record") not in labels:
             st.session_state.viewer_record = labels[0]
         if len(labels) <= 8:
-            selected = st.sidebar.radio("Registro en el visor", labels, key="viewer_record")
+            selected = st.sidebar.radio("Registro en el visor", labels, key="viewer_record", label_visibility="collapsed")
         else:
             selected = st.sidebar.selectbox("Registro en el visor", labels, key="viewer_record")
         index = labels.index(selected)
-        viewer, overview, windows, skew, translation, orfs, tm, blast, guide = st.tabs(
-            ["Visor", "Resumen", "GC por ventanas", "Sesgo GC", "Traducción", "ORFs", "Tm", "BLAST", "Guía"]
-        )
+        tools = ["Resumen", "Visor", "Traducción", "ORFs", "BLAST", "GC por ventanas",
+                 "Sesgo GC", "Tm", "Guía"]
+        st.sidebar.divider()
+        active_tool = st.sidebar.radio("Herramientas", tools, index=1, key="workspace_tool",
+                                       label_visibility="collapsed")
+        with st.container(key="tool_panels"):
+            with st.container(key=f"panel_{tools.index(active_tool)}"):
+                overview, viewer, translation, orfs, blast, windows, skew, tm, guide = st.tabs(
+                    tools, default=active_tool,
+                )
         with viewer:
             _tab_viewer(records[index], stats[index], stats, labels, checks, params, results)
         with overview:
