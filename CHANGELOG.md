@@ -4,6 +4,8 @@
 
 - Rediseño de la web estática con menú lateral plegable, métricas del registro y control de calidad junto al visor.
 - Mapa de ORFs por hebra y perfil de GC conectados al selector de región. El visor permite copiar, complementar o traducir la región activa.
+- La web ya no muestra una Tm para secuencias de más de 60 pb: indica "No aplica", igual que el límite orientativo de `dna-analyzer tm`.
+- El README empieza por la web pública, resume qué hace la herramienta y explica cómo instalarla desde GitHub mientras no esté en PyPI.
 
 ## 1.0.0 (sin publicar)
 
