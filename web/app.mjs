@@ -1,4 +1,4 @@
-import {codes, dna, orfs, parseFasta, stats, transcribe, translate, windows, melt} from './core.mjs';
+import {codes, dna, orfs, parseFasta, stats, transcribe, translate, windows, oligoTm, OLIGO_MAX_LENGTH} from './core.mjs';
 import {exportSample} from './exports.mjs';
 import {blastUrl} from './blast.mjs';
 import {copyRegion, mapOrf, reverseRegion, translateRegion} from './viewer.mjs';
@@ -87,9 +87,10 @@ function pickRecord(index) {
 
 function renderSample(record, hits, orfError) {
   const current = state.stats[state.active];
-  const tm = melt(record.sequence);
+  const tooLongForTm = current.length > OLIGO_MAX_LENGTH;
+  const tm = oligoTm(record.sequence);
   const metrics = [['Longitud', fmt(current.length) + ' pb'], ['GC', percent(current.gc_percent)],
-    ['Tm', tm === null ? '—' : fmt(tm) + ' °C'], ['ORFs', orfError ? '—' : fmt(hits.length)],
+    ['Tm', tooLongForTm ? 'No aplica' : tm === null ? '—' : fmt(tm) + ' °C'], ['ORFs', orfError ? '—' : fmt(hits.length)],
     ['Ambiguas', fmt(current.ambiguous_bases)]];
   $('metrics').replaceChildren(...metrics.map(([label, value]) => h('div', [h('span', label), h('strong', value)])));
   const invalid = [...new Set(record.sequence.toUpperCase().replace(/[ACGTURYSWKMBDHVN]/g, ''))];
@@ -102,7 +103,7 @@ function renderSample(record, hits, orfError) {
       current.gc_flag === 'high-gc' ? 'GC alto (> 65 %)' : 'Sin valores extremos de GC'],
   ];
   if (state.comments) checks.push([true, fmt(state.comments) + ' comentarios de cabecera']);
-  if (tm !== null && current.length > 60) checks.push([false, 'Tm estimada con un modelo para oligos cortos']);
+  if (tooLongForTm) checks.push([true, `Tm solo para oligos de hasta ${OLIGO_MAX_LENGTH} pb`]);
   if (orfError) checks.push([false, orfError.message]);
   $('checks').replaceChildren(...checks.map(([ok, label]) => h('li', [
     h('span', ok ? '✓' : '!', {'aria-label': ok ? 'Correcto' : 'Aviso'}), label,

@@ -1,22 +1,48 @@
-# dna-sequence-analyzer
+# DNA Sequence Analyzer
 
 [![CI](https://github.com/polmartinezmena/dna-sequence-analyzer/actions/workflows/tests.yml/badge.svg)](https://github.com/polmartinezmena/dna-sequence-analyzer/actions/workflows/tests.yml)
-[![PyPI](https://img.shields.io/pypi/v/dna-sequence-analyzer)](https://pypi.org/project/dna-sequence-analyzer/)
 [![Licencia MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE)
 [![Web pública](https://img.shields.io/badge/web-GitHub%20Pages-E08A2E)](https://polmartinezmena.github.io/dna-sequence-analyzer/)
 
-Herramienta de línea de comandos para analizar secuencias de ADN.
-Esta versión, la **1.0.0**, lee un archivo FASTA y, para cada secuencia,
-dice cómo se llama, cuántos símbolos tiene, cuál es su contenido en GC
-y cuántas bases ambiguas lleva. También parte la secuencia en ventanas,
-calcula el sesgo GC y estima la temperatura de fusión de un oligo corto.
+Analiza secuencias de ADN desde el navegador o desde Python: contenido en
+GC, traducción en seis marcos, ORFs, temperatura de fusión de oligos y
+consultas a BLAST de NCBI.
 
-También traduce en seis marcos, busca ORFs y consulta BLAST de NCBI
-para secuencias públicas. La web estática ofrece análisis desde el navegador.
+**[Abrir la web →](https://polmartinezmena.github.io/dna-sequence-analyzer/)**
+No hace falta instalar nada. Las secuencias se analizan en tu navegador y,
+tras la primera visita, la web funciona sin conexión. Solo BLAST envía datos
+a NCBI, y únicamente cuando tú lo lanzas.
+
+![La web de DNA Sequence Analyzer con el ARNm de la insulina humana: mapa de ORFs, perfil de GC, visor de secuencia y control de calidad](docs/images/web.png)
 
 Autor: Pol Martinez Mena, estudiante de Biotecnología en la UAB.
 
-## Qué hace
+## Qué puedes hacer
+
+- **Leer FASTA** con uno o varios registros, pegados, arrastrados o desde un archivo.
+- **Contenido en GC** global y por ventanas, con CpG observado/esperado y sesgo GC.
+- **Traducir** en los seis marcos de lectura con cualquier código genético de NCBI.
+- **Buscar ORFs** en las dos hebras, con inicios alternativos y coordenadas inclusivas desde 1.
+- **Temperatura de fusión** de oligos y cebadores (hasta 60 pb) con un modelo de vecinos más próximos.
+- **BLAST**: abre el formulario de NCBI con la secuencia o la proteína del ORF ya rellenada.
+- **Exportar** resúmenes en CSV, proteínas en FASTA, coordenadas en GFF3 o un informe HTML.
+
+## Empezar
+
+**En el navegador:** abre la [web pública](https://polmartinezmena.github.io/dna-sequence-analyzer/).
+
+**Con Python** (3.10 o posterior), instalando desde GitHub:
+
+```powershell
+pip install "git+https://github.com/polmartinezmena/dna-sequence-analyzer"
+dna-analyzer gc tu_archivo.fasta
+```
+
+El paquete todavía no está publicado en PyPI. Más abajo están la
+[instalación para desarrollo](#instalación), los [comandos](#uso) y la
+[biología que hay detrás](#la-biología-del-contenido-en-gc).
+
+## El comando gc en detalle
 
 Un archivo FASTA guarda una o varias secuencias. Cada una empieza por
 una línea de cabecera que comienza con `>`:
@@ -130,15 +156,15 @@ AAAA      longitud 4    GC% = 0
 
 ## Instalación
 
-Para instalar la versión publicada desde PyPI:
+El paquete todavía no está en PyPI. Para usarlo sin clonar el repositorio,
+instálalo desde GitHub (el segundo comando añade la app de Streamlit):
 
 ```powershell
-pip install dna-sequence-analyzer
-pip install 'dna-sequence-analyzer[web]'
+pip install "git+https://github.com/polmartinezmena/dna-sequence-analyzer"
+pip install "dna-sequence-analyzer[web] @ git+https://github.com/polmartinezmena/dna-sequence-analyzer"
 ```
 
-
-Hace falta Python 3.10 o posterior. Desde la carpeta del repositorio:
+Para desarrollar, hace falta Python 3.10 o posterior. Desde la carpeta del repositorio:
 
 ```bash
 python3 -m venv .venv
@@ -512,6 +538,11 @@ En **Secuencia**, el mapa muestra los ORFs por hebra y el perfil de GC por
 ventanas. Selecciona un ORF en el mapa o indica el inicio y el fin inclusivos
 en **Región**. Puedes copiar la selección, obtener su complemento inverso
 o traducirla desde la primera base de la hebra activa.
+
+La cabecera resume longitud, GC, Tm, ORFs y bases ambiguas. La Tm solo se
+calcula para secuencias de hasta 60 pb, el mismo límite que usa
+`dna-analyzer tm`: para un ARNm o un gen entero la web muestra "No aplica",
+porque el modelo de vecinos más próximos es para oligos cortos.
 
 Puedes importar un archivo, arrastrarlo o pegar el texto. **Exportar**
 descarga el resumen CSV, las

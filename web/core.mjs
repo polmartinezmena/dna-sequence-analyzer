@@ -1,6 +1,14 @@
 import {codes, complement, iupac} from './reference.mjs';
-export {codes};
-export {melt} from './melting.mjs';
+import {melt} from './melting.mjs';
+export {codes, melt};
+
+// Same limit as OLIGO_GUIDANCE_LENGTH in tm.py: the nearest-neighbor model is for short oligos.
+export const OLIGO_MAX_LENGTH = 60;
+
+// Tm of a short oligo, or null when the sequence is too long for the model or cannot be scored.
+export function oligoTm(sequence) {
+  return sequence.length && sequence.length <= OLIGO_MAX_LENGTH ? melt(sequence) : null;
+}
 
 export function parseFasta(text) {
   const records = [];

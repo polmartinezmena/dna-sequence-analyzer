@@ -1,4 +1,4 @@
-const CACHE = 'dna-analyzer-v3';
+const CACHE = 'dna-analyzer-v4';
 const FILES = ['./', './index.html', './styles.css', './app.mjs', './core.mjs',
   './melting.mjs', './reference.mjs', './exports.mjs', './viewer.mjs', './blast.mjs', './manifest.webmanifest',
   './icon.svg', './icon-192.png', './icon-512.png', './examples.fasta'];
